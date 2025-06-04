@@ -43,12 +43,16 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     console.log('📩 [IAINFO] Mensaje recibido de:', phone)
     console.log(`🔍 [IAINFO] Estado inicial de la caché: ${getCacheContactos().length} contactos`)
 
+    // --- [LOGS para depuración] ---
+console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.PROMPT_BLOQUES));
+console.log('🟡 [DEBUG] Sección 2:', ARCHIVO.PROMPT_BLOQUES['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']);
+    
     // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
 const bloques = ARCHIVO.PROMPT_BLOQUES
 const promptSistema = `
 ${bloques['secci_n_1_introducci_n_y_normas_generales']}
 
-${bloques['secci_n_2_gu_a_maestra_y_flujo_de_venta_ideal_paso_a_paso']}
+${bloques['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']}
 `
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
     let contacto = getContactoByTelefono(phone)
@@ -200,6 +204,9 @@ ${bloques['secci_n_2_gu_a_maestra_y_flujo_de_venta_ideal_paso_a_paso']}
   let contacto = getContactoByTelefono(phone)
   const datos = {}
 
+    // --- [LOGS para depuración] ---
+console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.PROMPT_BLOQUES));
+console.log('🟡 [DEBUG] Sección 2:', ARCHIVO.PROMPT_BLOQUES['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']);
 // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
 const bloques = ARCHIVO.PROMPT_BLOQUES
 const promptSistema = `
