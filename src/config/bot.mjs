@@ -135,6 +135,27 @@ export async function ActualizarBot() {
      //OTROS
       BOT.NUM_TEL = bot.NUM_TEL
 
+      // BASE DE CONOCIMIENTOS - LIMPIEZA DEL URL Y CARGA
+if (bot.URLPROMPT && typeof bot.URLPROMPT === 'string') {
+  // Elimina espacios en blanco y punto y coma al final si existen
+  let urlLimpia = bot.URLPROMPT.trim();
+  if (urlLimpia.endsWith(';')) {
+    urlLimpia = urlLimpia.slice(0, -1).trim();
+  }
+  BOT.URLPROMPT = urlLimpia;
+
+  if (BOT.URLPROMPT) {
+    try {
+      ARCHIVO.PROMPT_INFO = await getTxtDoc(getIdDocFromUrl(BOT.URLPROMPT));
+      console.log('✅ INFORMACION DE REFERENCIA CARGADA 📄');
+    } catch (error) {
+      console.error('❌ [ActualizarBot] Error cargando la BC desde Google Docs:', error.message);
+    }
+  } else {
+    console.warn('⚠️ [ActualizarBot] URL de la BC vacía después de limpiar.');
+  }
+}
+
       // 🧩 Configuración dinámica del nombre de hoja de productos
       BOT.PAG_PRODUCTOS = bot.PAG_PRODUCTOS || 'PRODUCTOS'
 
