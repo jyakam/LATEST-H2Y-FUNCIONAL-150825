@@ -40,14 +40,21 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
     }
 
     const openai = OpenIA()
-    const completion = await openai.chat.completions.create({
+    const request = {
       model: BOT.MODELO_IA,
       messages: _historial,
-      functions: FuncionesIA(guion),
-      function_call: 'auto',
       max_tokens: BOT.TOKENS,
       temperature: BOT.TEMPERATURA
-    })
+    }
+
+    // 🚨 Solo agrega 'functions' si hay funciones disponibles
+    const funciones = FuncionesIA(guion)
+    if (Array.isArray(funciones) && funciones.length > 0) {
+      request.functions = funciones
+      request.function_call = 'auto'
+    }
+
+    const completion = await openai.chat.completions.create(request)
 
     const message = completion.choices?.[0]?.message
     if (!message) throw new Error('❌ La IA no devolvió ninguna respuesta válida.')
@@ -63,3 +70,4 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
     return { respuesta: MENSAJES.ERROR || '❌ No pude procesar tu solicitud, por favor intentá más tarde.', tipo: ENUM_IA_RESPUESTAS.TEXTO }
   }
 }
+
