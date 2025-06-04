@@ -44,41 +44,35 @@ export async function EnviarIA(msj, guion, funciones, estado = {}) {
   }
 
   // --- 🎙️ AUDIO ---
-  if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
-    console.log('📤 🎵 Enviando nota de voz a OpenAI...')
-    const mensaje = []
-    const datos = funciones.state.get('archivos') || []
-    const audios = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.NOTA_VOZ)
+if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
+  console.log('📤 🎵 Enviando nota de voz a OpenAI...')
+  const mensaje = []
+  const datos = funciones.state.get('archivos') || []
+  const audios = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.NOTA_VOZ)
 
-    for (const aud of audios) {
-      const id = generateUniqueFileName('mp3')
-      const mp3 = await convertOggToMp3(aud.ruta, id, BOT.VELOCIDAD)
-      const txt = await EnviarAudioOpenAI(mp3)
-      mensaje.push(txt)
-    }
-
-    funciones.state.clear()
-    const final = `${promptExtra}\n${mensaje.join('\n')}`
-
-    console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (AUDIO):\n', final)
-    const res = await EnviarTextoOpenAI(final, funciones.ctx.from, guion, estado)
-    console.log('📥 RESPUESTA IA AUDIO:', res)
-    return res
+  for (const aud of audios) {
+    const id = generateUniqueFileName('mp3')
+    const mp3 = await convertOggToMp3(aud.ruta, id, BOT.VELOCIDAD)
+    const txt = await EnviarAudioOpenAI(mp3)
+    mensaje.push(txt)
   }
 
-  // --- 📦 DOCUMENTO ---
-  if (tipoMensaje === ENUM_TIPO_ARCHIVO.DOCUMENTO) {
-    console.log('📤 📦 Documento detectado, enviando...')
-    console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (DOCUMENTO):\n', mensajeFinal)
+  funciones.state.clear()
+  const final = `${promptExtra}\n${mensaje.join('\n')}`
 
-    const res = await EnviarTextoOpenAI(mensajeFinal, funciones.ctx.from, guion, estado)
-    console.log('📥 RESPUESTA IA DOCUMENTO:', res)
-    return res
-  }
+  console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (AUDIO):\n', final)
+  // 👇👇 ESTE ES EL NUEVO LOG QUE TE RECOMIENDO AGREGAR 👇👇
+  console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA:\n', guion)
+
+  const res = await EnviarTextoOpenAI(final, funciones.ctx.from, guion, estado)
+  console.log('📥 RESPUESTA IA AUDIO:', res)
+  return res
+}
 
   // --- 📝 TEXTO NORMAL ---
   console.log('📤 📄 Enviando texto plano:', msj)
-  console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (TEXTO):\n', mensajeFinal)
+console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (TEXTO):\n', mensajeFinal)
+console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA:\n', guion)
 
   const res = await EnviarTextoOpenAI(mensajeFinal, funciones.ctx.from, guion, estado)
   console.log('📥 RESPUESTA IA TEXTO:', res)
