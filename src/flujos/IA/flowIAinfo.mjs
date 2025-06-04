@@ -2,7 +2,7 @@ import 'dotenv/config'
 import fs from 'fs'
 import { addKeyword, EVENTS } from '@builderbot/bot'
 import { ActualizarContacto } from '../../config/contactos.mjs'
-import { BOT } from '../../config/bot.mjs'
+import { BOT, ARCHIVO } from '../../config/bot.mjs'
 import { ENUM_IA_RESPUESTAS } from '../../APIs/OpenAi/IAEnumRespuestas.mjs'
 import { AgruparMensaje } from '../../funciones/agruparMensajes.mjs'
 import { Escribiendo } from '../../funciones/proveedor.mjs'
@@ -43,6 +43,13 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     console.log('📩 [IAINFO] Mensaje recibido de:', phone)
     console.log(`🔍 [IAINFO] Estado inicial de la caché: ${getCacheContactos().length} contactos`)
 
+    // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
+const bloques = ARCHIVO.PROMPT_BLOQUES
+const promptSistema = `
+${bloques['secci_n_1_introducci_n_y_normas_generales']}
+
+${bloques['secci_n_2_gu_a_maestra_y_flujo_de_venta_ideal_paso_a_paso']}
+`
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
     let contacto = getContactoByTelefono(phone)
     if (!contacto) {
@@ -119,7 +126,7 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     if (!BOT.PRODUCTOS) {
       console.log('🛑 [IAINFO] Flag PRODUCTOS está en FALSE, saltando lógica de productos.')
       // Aquí la IA responde SIN lógica de productos pero contactos sí funcionan
-      const res = await EnviarIA(ctx.body, ENUNGUIONES.INFO, {
+      const res = await EnviarIA(ctx.body, promptSistema, {
         ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: ''
       }, { esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre', contacto: contacto || {} })
       await Responder(res, ctx, flowDynamic, state)
@@ -173,7 +180,8 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
         contacto: contacto || {}
       }
 
-      const res = await EnviarIA(txt, ENUNGUIONES.INFO, {
+      console.log('=== [PROMPT SISTEMA QUE SE ENVÍA A LA IA] ===\n', promptSistema)
+      const res = await EnviarIA(txt, promptSistema, {
         ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
       }, estado)
 
@@ -192,6 +200,13 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   let contacto = getContactoByTelefono(phone)
   const datos = {}
 
+// Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
+const bloques = ARCHIVO.PROMPT_BLOQUES
+const promptSistema = `
+${bloques['secci_n_1_introducci_n_y_normas_generales']}
+
+${bloques['secci_n_2_gu_a_maestra_y_flujo_de_venta_ideal_paso_a_paso']}
+`
   await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
 
   // Detecta y guarda nombre/email si está presente literal
@@ -217,7 +232,7 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   // ------ CHEQUEO DEL FLAG DE PRODUCTOS ------
   if (!BOT.PRODUCTOS) {
     console.log('🛑 [IAINFO][capture] Flag PRODUCTOS está en FALSE, saltando lógica de productos.')
-    const res = await EnviarIA(message, ENUNGUIONES.INFO, {
+    const res = await EnviarIA(message, promptSistema, {
       ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: ''
     }, { esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre', contacto: contacto || {} })
     await Responder(res, ctx, flowDynamic, state)
@@ -279,7 +294,8 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
       contacto: contacto || {}
     }
 
-    const res = await EnviarIA(txt, ENUNGUIONES.INFO, {
+    console.log('=== [PROMPT SISTEMA QUE SE ENVÍA A LA IA] ===\n', promptSistema)
+    const res = await EnviarIA(txt, promptSistema, {
       ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
     }, estado)
 
