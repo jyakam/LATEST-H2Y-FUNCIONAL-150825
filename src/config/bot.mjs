@@ -2,6 +2,8 @@ import 'dotenv/config'
 import { AppSheetUser, getTable } from 'appsheet-connect'
 import { getIdDocFromUrl, getTxtDoc } from 'googledocs-downloader'
 import { cargarContactosDesdeAppSheet, getCacheContactos } from '../funciones/helpers/cacheContactos.mjs'
+import { cargarYDividirBC } from '../bc/cargarBC.mjs'
+
 
 //TT APSHEET CREDENCIALES
 const appsheetId = process.env.APPSHEET_ID
@@ -82,8 +84,13 @@ export async function Inicializar() {
   } catch (err) {
     console.error('❌ Error al intentar leer la tabla PRODUCTOS:', err.message)
   }
+
+  await ActualizarBot()
+
+  // ✅ Cargar y dividir la BC en bloques después de cargar la config
+  await cargarYDividirBC()
+
   await Promise.all([
-    ActualizarBot(),
     ActualizarMensajes(),
     ActualizarContactos(),
     ActualizarNotificaciones()
@@ -125,14 +132,7 @@ export async function ActualizarBot() {
       BOT.PROCESAR_AUDIOS = bot.PROCESAR_AUDIOS
       BOT.VELOCIDAD = parseFloat(bot.VELOCIDAD, 10) || 1.5
 
-      //BASE DE CONOCIMIENTOS
-      if (bot.URLPROMPT !== '') {
-        BOT.URLPROMPT = bot.URLPROMPT
-        ARCHIVO.PROMPT_INFO = await getTxtDoc(getIdDocFromUrl(bot.URLPROMPT))
-        console.log('✅ INFORMACION DE REFERENCIA CARGADA 📄')
-      }
-
-      //OTROS
+     //OTROS
       BOT.NUM_TEL = bot.NUM_TEL
 
       // 🧩 Configuración dinámica del nombre de hoja de productos
