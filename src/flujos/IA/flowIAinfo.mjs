@@ -27,6 +27,59 @@ import { enviarImagenProductoOpenAI } from '../../APIs/OpenAi/enviarImagenProduc
 import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA } from '../../funciones/helpers/contactosIAHelper.mjs'
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 
+// === BLOQUES DE AYUDA PARA EL FLUJO Y PROMPT ===
+
+function getPasoFlujoActual(state) {
+  // Obtiene el paso actual del flujo, o 0 si no existe.
+  return state.get('pasoFlujoActual') ?? 0;
+}
+
+function limpiarClaveCategoria(texto) {
+  // Convierte el nombre de la categoría a snake_case sin tildes ni ñ
+  return (texto || '').toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+}
+
+// Función que construye el prompt óptimo para la IA:
+function armarPromptOptimizado(state, bloques, opciones = {}) {
+  // 1. SECCION 0 (INTRO Y REGLAS DE ORO)
+  const intro = bloques['seccion_0_introduccion_general'] || '';
+
+  // 2. Introducción de SECCION 2 (antes del primer PASO)
+  // La intro es lo que hay ANTES del primer 📌 PASO.
+  let introSeccion2 = '';
+  let pasos = bloques.PASOS_FLUJO || [];
+  if (bloques['seccion_2_flujo_de_ventas_ideal_paso_a_paso']) {
+    const seccion2 = bloques['seccion_2_flujo_de_ventas_ideal_paso_a_paso'];
+    const match = seccion2.split(/(?=📌\s*PASO\s*\d+:)/i);
+    introSeccion2 = match[0]?.trim() || '';
+  }
+
+  // 3. PASO actual (depende del usuario)
+  const pasoFlujoActual = getPasoFlujoActual(state);
+  const textoPaso = pasos[pasoFlujoActual] || '';
+
+  // 4. Opcional: Productos y Testimonios
+  let textoProductos = '';
+  if (opciones.incluirProductos && opciones.categoriaProductos) {
+    const cat = limpiarClaveCategoria(opciones.categoriaProductos);
+    textoProductos = bloques.CATEGORIAS_PRODUCTOS?.[cat] || '';
+  }
+
+  let textoTestimonios = '';
+  if (opciones.incluirTestimonios) {
+    textoTestimonios = bloques['secci_n_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
+  }
+
+  // Une todo
+  return [
+    intro,
+    introSeccion2,
+    textoPaso,
+    textoProductos,
+    textoTestimonios
+  ].filter(Boolean).join('\n\n');
+}
+
 // IMPORTANTE: Cache de contactos (nuevo sistema)
 import { getContactoByTelefono, getCacheContactos, actualizarContactoEnCache } from '../../funciones/helpers/cacheContactos.mjs'
 
@@ -48,12 +101,19 @@ console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.P
 console.log('🟡 [DEBUG] Sección 2:', ARCHIVO.PROMPT_BLOQUES['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']);
     
     // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
-const bloques = ARCHIVO.PROMPT_BLOQUES
-const promptSistema = `
-${bloques['secci_n_1_introducci_n_y_normas_generales']}
+const bloques = ARCHIVO.PROMPT_BLOQUES;
 
-${bloques['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']}
-`
+// --- Detecta intención de productos y testimonios (ajusta según tus helpers) ---
+const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } =
+  await obtenerIntencionConsulta(message, '', state);
+
+// --- Construye el prompt optimizado ---
+const promptSistema = armarPromptOptimizado(state, bloques, {
+  incluirProductos: esConsultaProductos,
+  categoriaProductos: categoriaDetectada,
+  incluirTestimonios: esConsultaTestimonios
+});
+
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
     let contacto = getContactoByTelefono(phone)
     if (!contacto) {
@@ -207,13 +267,21 @@ ${bloques['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']}
     // --- [LOGS para depuración] ---
 console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.PROMPT_BLOQUES));
 console.log('🟡 [DEBUG] Sección 2:', ARCHIVO.PROMPT_BLOQUES['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']);
-// Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
-const bloques = ARCHIVO.PROMPT_BLOQUES
-const promptSistema = `
-${bloques['secci_n_1_introducci_n_y_normas_generales']}
 
-${bloques['secci_n_2_gu_a_maestra_y_flujo_de_venta_ideal_paso_a_paso']}
-`
+// Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
+const bloques = ARCHIVO.PROMPT_BLOQUES;
+
+// --- Detecta intención de productos y testimonios (ajusta según tus helpers) ---
+const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } =
+  await obtenerIntencionConsulta(message, '', state);
+
+// --- Construye el prompt optimizado ---
+const promptSistema = armarPromptOptimizado(state, bloques, {
+  incluirProductos: esConsultaProductos,
+  categoriaProductos: categoriaDetectada,
+  incluirTestimonios: esConsultaTestimonios
+});
+
   await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
 
   // Detecta y guarda nombre/email si está presente literal
@@ -330,7 +398,16 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
     return gotoFlow(flowProductos)
   }
 
+  // Primero responde normalmente al usuario
   await Responder(res, ctx, flowDynamic, state)
+
+  // --- AVANZAR AL SIGUIENTE PASO SI LA IA LO INDICA ---
+  // Si la IA responde con "⏭️ siguiente paso", avanza el paso en el flujo
+  if (res?.respuesta && res.respuesta.toLowerCase().includes('⏭️ siguiente paso')) {
+    let pasoActual = getPasoFlujoActual(state);
+    await state.update({ pasoFlujoActual: pasoActual + 1 });
+    console.log('➡️ [flowIAinfo] Avanzando al siguiente paso:', pasoActual + 1);
+  }
 }
 
 async function Responder(res, ctx, flowDynamic, state) {
