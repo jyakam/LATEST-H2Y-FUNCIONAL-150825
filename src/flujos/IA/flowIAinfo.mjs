@@ -91,8 +91,9 @@ export function extraerNombreProductoDeVision(texto) {
 
 export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, tools) => {
-    const { flowDynamic, endFlow, gotoFlow, provider, state } = tools
-    const phone = ctx.from.split('@')[0]
+    const { flowDynamic, endFlow, gotoFlow, provider, state } = tools;
+    const phone = ctx.from.split('@')[0];
+    const message = ctx.body.trim(); // <-- ¡Agrega esta línea aquí!
     console.log('📩 [IAINFO] Mensaje recibido de:', phone)
     console.log(`🔍 [IAINFO] Estado inicial de la caché: ${getCacheContactos().length} contactos`)
 
