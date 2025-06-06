@@ -65,7 +65,8 @@ function extraerBloquesBC(texto) {
  */
 function extraerPasosSeccion2(textoSeccion2) {
   if (!textoSeccion2) return []
-  // Regex para dividir por pasos (mantiene el título del paso)
-  const partes = textoSeccion2.split(/(?=✅\s*PASO\s*\d+:)/i).map(x => x.trim()).filter(x => x)
+  // Usamos 📌 PASO como delimitador REAL de pasos desarrollados
+  const partes = textoSeccion2.split(/(?=📌\s*PASO\s*\d+:)/i).map(x => x.trim()).filter(x => x)
   return partes
 }
+
