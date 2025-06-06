@@ -16,6 +16,14 @@ export async function cargarYDividirBC() {
     const rawText = await getTxtDoc(getIdDocFromUrl(BOT.URLPROMPT))
     const bloques = extraerBloquesBC(rawText)
     ARCHIVO.PROMPT_BLOQUES = bloques // Guarda todos los bloques en memoria global
+
+    // 👉 AGREGA ESTAS LÍNEAS (extractor de pasos)
+    const claveSeccion2 = Object.keys(bloques).find(k => k.includes('guia_maestra'))
+    if (claveSeccion2) {
+      ARCHIVO.PROMPT_BLOQUES.PASOS_GUIA_MAESTRA = extraerPasosSeccion2(bloques[claveSeccion2])
+      console.log('✅ [cargarBC] SECCIÓN 2 dividida en', ARCHIVO.PROMPT_BLOQUES.PASOS_GUIA_MAESTRA.length, 'pasos.')
+    }
+
     console.log('✅ [cargarBC] Base de Conocimiento cargada y dividida en', Object.keys(bloques).length, 'bloques.')
     return bloques
   } catch (err) {
@@ -49,4 +57,15 @@ function extraerBloquesBC(texto) {
     console.warn('⚠️ [cargarBC] No se encontraron bloques en el documento. ¿Los delimitadores están bien puestos?')
   }
   return bloques
+}
+
+/**
+ * Divide SECCIÓN 2 en pasos individuales (array) y lo agrega a ARCHIVO.PROMPT_BLOQUES
+ * Usa el marcador "✅ PASO X:" como delimitador
+ */
+function extraerPasosSeccion2(textoSeccion2) {
+  if (!textoSeccion2) return []
+  // Regex para dividir por pasos (mantiene el título del paso)
+  const partes = textoSeccion2.split(/(?=✅\s*PASO\s*\d+:)/i).map(x => x.trim()).filter(x => x)
+  return partes
 }
