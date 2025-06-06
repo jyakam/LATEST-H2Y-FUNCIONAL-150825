@@ -170,8 +170,7 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
     if (contacto) await ActualizarFechasContacto(contacto, phone)
 
     // ------ BLOQUE DE IA PARA DATOS DE CONTACTO: SIEMPRE SE EJECUTA ------
-    const message = ctx.body.trim()
-    const datos = {}
+       const datos = {}
     if (/me llamo|mi nombre es/i.test(message)) {
       const nombre = message.split(/me llamo|mi nombre es/i)[1]?.trim()
       if (nombre && !/\d/.test(nombre)) datos.NOMBRE = nombre
