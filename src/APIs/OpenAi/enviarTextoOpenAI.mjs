@@ -54,6 +54,20 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
       request.function_call = 'auto'
     }
 
+  // LOG 1: Ver historial completo
+console.log('================= [DEBUG PROMPT OPENAI] =================');
+console.log('[DEBUG] Largo del historial:', _historial.length);
+_historial.forEach((m, idx) => {
+  console.log(`[${idx}] (${m.role})`, m.content?.substring(0, 350).replace(/\n/g, ' ') + (m.content && m.content.length > 350 ? '... [truncado]' : ''));
+});
+console.log('Longitud total del prompt (caracteres):', _historial.reduce((acc, m) => acc + (m.content?.length || 0), 0));
+console.log('==========================================================');
+
+// LOG 2: Mostrar el prompt real en un solo string (como lo ve la IA)
+console.log('======= [PROMPT REAL ENVIADO A LA IA] =======');
+console.log(_historial.map(m => `${m.role}: ${m.content}`).join('\n\n'));
+console.log('=============================================');
+    
     const completion = await openai.chat.completions.create(request)
 
     const message = completion.choices?.[0]?.message
