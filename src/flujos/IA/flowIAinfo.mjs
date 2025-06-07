@@ -41,39 +41,26 @@ function limpiarClaveCategoria(texto) {
 
 // Función que construye el prompt óptimo para la IA:
 function armarPromptOptimizado(state, bloques, opciones = {}) {
-  // 1. SECCION 0 (INTRO Y REGLAS DE ORO)
-  const intro = bloques['seccion_0_introduccion_general'] || '';
-
-  // 2. Introducción de SECCION 2 (antes del primer PASO)
-  // La intro es lo que hay ANTES del primer 📌 PASO.
-  let introSeccion2 = '';
-  let pasos = bloques.PASOS_FLUJO || [];
-  if (bloques['seccion_2_flujo_de_ventas_ideal_paso_a_paso']) {
-    const seccion2 = bloques['seccion_2_flujo_de_ventas_ideal_paso_a_paso'];
-    const match = seccion2.split(/(?=📌\s*PASO\s*\d+:)/i);
-    introSeccion2 = match[0]?.trim() || '';
-  }
-
-  // 3. PASO actual (depende del usuario)
+  // 1. SIEMPRE incluir SECCION 0 (intro, presentación, reglas básicas)
+  const seccion0 = bloques['seccion_0_introduccion_general'] || '';
+  // 2. SECCION 1 NO se incluye siempre (solo si el flujo lo pide, la IA sabe que existe por SECCION 0)
+  // 3. Incluir SOLO el paso actual del flujo (SECCION 2)
+  const pasos = bloques.PASOS_FLUJO || [];
   const pasoFlujoActual = getPasoFlujoActual(state);
   const textoPaso = pasos[pasoFlujoActual] || '';
-
-  // 4. Opcional: Productos y Testimonios
+  // 4. Si hace falta, incluir productos o testimonios (según opciones)
   let textoProductos = '';
   if (opciones.incluirProductos && opciones.categoriaProductos) {
     const cat = limpiarClaveCategoria(opciones.categoriaProductos);
     textoProductos = bloques.CATEGORIAS_PRODUCTOS?.[cat] || '';
   }
-
   let textoTestimonios = '';
   if (opciones.incluirTestimonios) {
     textoTestimonios = bloques['secci_n_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
   }
-
-  // Une todo
+  // 5. Une TODO (sin SECCION 1, para que solo la consulte si hace falta)
   return [
-    intro,
-    introSeccion2,
+    seccion0,
     textoPaso,
     textoProductos,
     textoTestimonios
