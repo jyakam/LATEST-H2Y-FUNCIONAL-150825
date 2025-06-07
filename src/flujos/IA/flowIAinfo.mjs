@@ -93,16 +93,24 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, tools) => {
     const { flowDynamic, endFlow, gotoFlow, provider, state } = tools;
     const phone = ctx.from.split('@')[0];
-    const message = ctx.body.trim(); // <-- ¡Agrega esta línea aquí!
+    const message = ctx.body.trim();
+
+    // --- Asegúrate que siempre arranque en el PASO 1 (índice 0) ---
+    if (typeof state.get('pasoFlujoActual') !== 'number') {
+      await state.update({ pasoFlujoActual: 0 });
+    }
+
     console.log('📩 [IAINFO] Mensaje recibido de:', phone)
     console.log(`🔍 [IAINFO] Estado inicial de la caché: ${getCacheContactos().length} contactos`)
-
+  
     // --- [LOGS para depuración] ---
 console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.PROMPT_BLOQUES));
 console.log('🟡 [DEBUG] Sección 2:', ARCHIVO.PROMPT_BLOQUES['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']);
     
     // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
 const bloques = ARCHIVO.PROMPT_BLOQUES;
+    // DEBUG: Muestra cuántos pasos detectó en la sección de flujo
+console.log('🟠 [DEBUG] PASOS_FLUJO:', bloques.PASOS_FLUJO);
 
 // --- Detecta intención de productos y testimonios (ajusta según tus helpers) ---
 const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } =
@@ -244,10 +252,10 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
         contacto: contacto || {}
       }
 
-      console.log('=== [PROMPT SISTEMA QUE SE ENVÍA A LA IA] ===\n', promptSistema)
-      const res = await EnviarIA(txt, promptSistema, {
-        ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-      }, estado)
+      console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+const res = await EnviarIA(txt, promptSistema, {
+  ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
+}, estado)
 
       console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta)
 
@@ -261,6 +269,12 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   const { flowDynamic, endFlow, gotoFlow, provider, state } = tools
   const phone = ctx.from.split('@')[0]
   const message = ctx.body.trim()
+
+  // --- Asegúrate que siempre arranque en el PASO 1 (índice 0) ---
+  if (typeof state.get('pasoFlujoActual') !== 'number') {
+    await state.update({ pasoFlujoActual: 0 });
+  }
+
   let contacto = getContactoByTelefono(phone)
   const datos = {}
 
@@ -271,6 +285,9 @@ console.log('🟡 [DEBUG] Sección 2:', ARCHIVO.PROMPT_BLOQUES['secci_n_2_guia_m
 // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
 const bloques = ARCHIVO.PROMPT_BLOQUES;
 
+// DEBUG: Muestra cuántos pasos detectó en la sección de flujo
+console.log('🟠 [DEBUG] PASOS_FLUJO:', bloques.PASOS_FLUJO);
+    
 // --- Detecta intención de productos y testimonios (ajusta según tus helpers) ---
 const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } =
   await obtenerIntencionConsulta(message, '', state);
@@ -369,10 +386,10 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
       contacto: contacto || {}
     }
 
-    console.log('=== [PROMPT SISTEMA QUE SE ENVÍA A LA IA] ===\n', promptSistema)
-    const res = await EnviarIA(txt, promptSistema, {
-      ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-    }, estado)
+    cconsole.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+const res = await EnviarIA(txt, promptSistema, {
+  ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
+}, estado)
 
     await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
     await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
