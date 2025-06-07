@@ -9,7 +9,8 @@ let HistorialConv = {}
  * Si no existe, lo crea con el system prompt generado por el guion.
  */
 export function ObtenerHistorial(userId, guion, estado) {
-  const _txt = ConstrurGuion(guion, estado) || 'Eres un asistente conversacional.'
+  // Ahora 'guion' ES el system prompt real (con el paso correcto de la BC)
+  const _txt = guion || 'Eres un asistente conversacional.'
   if (!HistorialConv[userId] || !Array.isArray(HistorialConv[userId])) {
     HistorialConv[userId] = []
     HistorialConv[userId].push({ role: 'system', content: _txt })
