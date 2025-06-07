@@ -69,11 +69,26 @@ function extraerBloquesBC(texto) {
 /**
  * Divide SECCION 2 en pasos individuales (array) usando 📌 como delimitador.
  */
+/**
+ * Extrae los pasos individuales usando delimitadores INICIO PASO y FIN PASO.
+ * Devuelve un array de textos, cada uno es un paso.
+ */
 function extraerPasosSeccion2(textoSeccion2) {
-  if (!textoSeccion2) return []
-  // Regex para dividir por pasos (mantiene el título del paso)
-  const partes = textoSeccion2.split(/(?=📌\s*PASO\s*\d+:)/i).map(x => x.trim()).filter(x => x)
-  return partes
+  if (!textoSeccion2) return [];
+  const pasos = [];
+  // Regex para encontrar cada paso completo
+  const re = /=== INICIO PASO: (.*?) ===([\s\S]*?)=== FIN PASO: \1 ===/gi;
+  let match;
+  while ((match = re.exec(textoSeccion2)) !== null) {
+    const nombreOriginal = match[1].trim();
+    const contenido = match[2].trim();
+    pasos.push(contenido);
+    console.log(`🟢 [cargarBC] Paso cargado: "${nombreOriginal}"`);
+  }
+  if (pasos.length === 0) {
+    console.warn('⚠️ [cargarBC] No se encontraron pasos en la SECCIÓN 2. ¿Los delimitadores están bien puestos?');
+  }
+  return pasos;
 }
 
 /**
