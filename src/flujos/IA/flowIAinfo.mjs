@@ -26,6 +26,7 @@ import { traducirTexto } from '../../funciones/helpers/traducirTexto.mjs'
 import { enviarImagenProductoOpenAI } from '../../APIs/OpenAi/enviarImagenProductoOpenAI.mjs'
 import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA } from '../../funciones/helpers/contactosIAHelper.mjs'
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
+import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
 
 // === BLOQUES DE AYUDA PARA EL FLUJO Y PROMPT ===
 
@@ -386,6 +387,9 @@ const res = await EnviarIA(txt, promptSistema, {
 })
 
 async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
+  // 🔵 NUEVO: Ejecuta el ciclo de marcadores antes de responder al usuario
+  res = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state })
+
   const respuestaIA = res.respuesta?.toLowerCase?.() || ''
   console.log('🧠 Token recibido de IA:', respuestaIA)
 
@@ -402,15 +406,12 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
     return gotoFlow(flowProductos)
   }
 
-  // Primero responde normalmente al usuario
   await Responder(res, ctx, flowDynamic, state)
 
-  // --- AVANZAR AL SIGUIENTE PASO SI LA IA LO INDICA ---
-  // Si la IA responde con "⏭️ siguiente paso", avanza el paso en el flujo
   if (res?.respuesta && res.respuesta.toLowerCase().includes('⏭️ siguiente paso')) {
-    let pasoActual = getPasoFlujoActual(state);
-    await state.update({ pasoFlujoActual: pasoActual + 1 });
-    console.log('➡️ [flowIAinfo] Avanzando al siguiente paso:', pasoActual + 1);
+    let pasoActual = getPasoFlujoActual(state)
+    await state.update({ pasoFlujoActual: pasoActual + 1 })
+    console.log('➡️ [flowIAinfo] Avanzando al siguiente paso:', pasoActual + 1)
   }
 }
 
