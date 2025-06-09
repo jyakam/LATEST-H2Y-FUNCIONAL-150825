@@ -420,22 +420,34 @@ async function Responder(res, ctx, flowDynamic, state) {
     await Esperar(BOT.DELAY);
 
     const yaRespondido = state.get('ultimaRespuestaSimple') || '';
-    const nuevaRespuesta = res.respuesta.toLowerCase().trim();
+    let nuevaRespuesta = res.respuesta.trim();
 
-    if (nuevaRespuesta && nuevaRespuesta === yaRespondido) {
+    // 🔴🔴🔴 LIMPIEZA DE MARCADORES INTERNOS 🔴🔴🔴
+    // Esto borra cualquier marcador tipo [SOLICITAR_SECCION: ...] (incluso si la IA deja otros similares)
+    nuevaRespuesta = nuevaRespuesta.replace(/\[.*?: [^\]]+\]/gi, '').trim();
+
+    // Opcional: Log para ver si hubo marcadores eliminados
+    if (nuevaRespuesta !== res.respuesta.trim()) {
+      console.log('⚠️ [FILTRO] Se eliminó un marcador interno de la respuesta IA.');
+    }
+
+    // (Convierte a minúsculas para el control de respuestas repetidas)
+    const nuevaRespuestaComparar = nuevaRespuesta.toLowerCase();
+
+    if (nuevaRespuestaComparar && nuevaRespuestaComparar === yaRespondido) {
       console.log('⚡ Respuesta ya fue enviada antes, evitando repetición.');
       return;
     }
 
-    await state.update({ ultimaRespuestaSimple: nuevaRespuesta });
+    await state.update({ ultimaRespuestaSimple: nuevaRespuestaComparar });
 
-    const msj = await EnviarImagenes(res.respuesta, flowDynamic, ctx);
+    const msj = await EnviarImagenes(nuevaRespuesta, flowDynamic, ctx);  // Usamos la respuesta LIMPIA
     const startTime = Date.now();
     console.log('⏱️ [DEBUG] Inicio de envío de mensaje a', ctx.from.split('@')[0]);
     await flowDynamic(msj);
 
     // Guardar mensaje del bot en el historial
-    actualizarHistorialConversacion(res.respuesta, 'bot', state);
+    actualizarHistorialConversacion(nuevaRespuesta, 'bot', state);
 
     console.log('⏱️ [DEBUG] Fin de envío de mensaje a', ctx.from.split('@')[0], 'Tiempo:', Date.now() - startTime, 'ms');
     // Solo UNA llamada a flowDynamic, problema resuelto.
