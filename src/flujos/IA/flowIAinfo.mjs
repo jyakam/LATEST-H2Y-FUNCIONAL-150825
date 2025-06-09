@@ -110,6 +110,15 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   categoriaProductos: categoriaDetectada,
   incluirTestimonios: esConsultaTestimonios
 });
+// AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (dinámicamente, sin importar el nombre)
+const seccionesEnviadas = [];
+for (const [clave, contenido] of Object.entries(bloques)) {
+  // Solo chequea bloques que sean string y tengan contenido significativo (evita objetos o arrays como PASOS_FLUJO)
+  if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
+    seccionesEnviadas.push(clave);
+  }
+}
+console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
     let contacto = getContactoByTelefono(phone)
@@ -245,11 +254,18 @@ const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
 
-      console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta)
+// --- AUDITORÍA: Loguear marcadores que la IA solicitó ---
+const marcadoresSolicitados = (res.respuesta.match(/\[SOLICITAR_SECCION: ([^\]]+)\]/gi) || [])
+  .map(x => x.replace(/\[SOLICITAR_SECCION: /i, '').replace(']', '').trim());
+if (marcadoresSolicitados.length) {
+  console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
+}
 
-      await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
+console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
 
-      await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
+await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt);
+
+await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     })
   })
 
@@ -286,6 +302,15 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   categoriaProductos: categoriaDetectada,
   incluirTestimonios: esConsultaTestimonios
 });
+// AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (dinámicamente, sin importar el nombre)
+const seccionesEnviadas = [];
+for (const [clave, contenido] of Object.entries(bloques)) {
+  // Solo chequea bloques que sean string y tengan contenido significativo (evita objetos o arrays como PASOS_FLUJO)
+  if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
+    seccionesEnviadas.push(clave);
+  }
+}
+console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
   await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
 
@@ -379,8 +404,15 @@ const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
 
-    await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
-    await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
+// --- AUDITORÍA: Loguear marcadores que la IA solicitó ---
+const marcadoresSolicitados = (res.respuesta.match(/\[SOLICITAR_SECCION: ([^\]]+)\]/gi) || [])
+  .map(x => x.replace(/\[SOLICITAR_SECCION: /i, '').replace(']', '').trim());
+if (marcadoresSolicitados.length) {
+  console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
+}
+
+await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
+await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
   })
 
   return tools.fallBack()
