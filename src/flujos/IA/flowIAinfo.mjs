@@ -230,25 +230,26 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
       }
     }
 
-    AgruparMensaje(detectar, async (txt) => {
-      // Guardar mensaje del cliente en el historial
-      actualizarHistorialConversacion(txt, 'cliente', state);
-      Escribiendo(ctx)
-      console.log('🧾 [IAINFO] Texto agrupado final del usuario:', txt)
+   AgruparMensaje(detectar, async (txt) => {
+  // Guardar mensaje del cliente en el historial
+  actualizarHistorialConversacion(txt, 'cliente', state);
+  Escribiendo(ctx)
+  console.log('🧾 [IAINFO] Texto agrupado final del usuario:', txt)
 
-      const productos = await obtenerProductosCorrectos(txt, state)
-      const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : ''
+  const productos = await obtenerProductosCorrectos(txt, state)
+  const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : ''
 
-      if (productos.length) {
-        await state.update({ productosUltimaSugerencia: productos })
-        console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`)
-      }
+  if (productos.length) {
+    await state.update({ productosUltimaSugerencia: productos })
+    console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`)
+  }
 
-      const estado = {
-        esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-        contacto: contacto || {}
-      }
-      // === AUDITORÍA DE SECCIONES ENVIADAS ===
+  const estado = {
+    esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+    contacto: contacto || {}
+  }
+
+  // === AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (en cada mensaje) ===
   const seccionesEnviadas = [];
   for (const [clave, contenido] of Object.entries(bloques)) {
     if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
@@ -257,17 +258,18 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
   }
   console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
-      console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
-const res = await EnviarIA(txt, promptSistema, {
-  ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-}, estado)
+  console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);
 
-// --- AUDITORÍA: Loguear marcadores que la IA solicitó ---
-const marcadoresSolicitados = (res.respuesta.match(/\[SOLICITAR_SECCION: ([^\]]+)\]/gi) || [])
-  .map(x => x.replace(/\[SOLICITAR_SECCION: /i, '').replace(']', '').trim());
-if (marcadoresSolicitados.length) {
-  console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
-}
+  const res = await EnviarIA(txt, promptSistema, {
+    ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
+  }, estado)
+
+  // --- AUDITORÍA: Loguear marcadores que la IA solicitó ---
+  const marcadoresSolicitados = (res.respuesta.match(/\[SOLICITAR_SECCION: ([^\]]+)\]/gi) || [])
+    .map(x => x.replace(/\[SOLICITAR_SECCION: /i, '').replace(']', '').trim());
+  if (marcadoresSolicitados.length) {
+    console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
+  }
 
 console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
 
@@ -377,36 +379,37 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
     }
   }
 
-  AgruparMensaje(detectar, async (txt) => {
-    // Guardar mensaje del cliente en el historial
-    actualizarHistorialConversacion(txt, 'cliente', state);
-    if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow)
-    reset(ctx, gotoFlow, BOT.IDLE_TIME * 60)
-    Escribiendo(ctx)
+ AgruparMensaje(detectar, async (txt) => {
+  // Guardar mensaje del cliente en el historial
+  actualizarHistorialConversacion(txt, 'cliente', state);
+  if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow)
+  reset(ctx, gotoFlow, BOT.IDLE_TIME * 60)
+  Escribiendo(ctx)
 
-    console.log('✏️ [IAINFO] Mensaje capturado en continuación de conversación:', txt)
+  console.log('✏️ [IAINFO] Mensaje capturado en continuación de conversación:', txt)
 
-    const productos = await obtenerProductosCorrectos(txt, state)
-    const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : ''
+  const productos = await obtenerProductosCorrectos(txt, state)
+  const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : ''
 
-    if (productos.length) {
-      await state.update({ productosUltimaSugerencia: productos })
-    }
+  if (productos.length) {
+    await state.update({ productosUltimaSugerencia: productos })
+  }
 
-    // ------ SIEMPRE chequear si hay nuevos datos de contacto ------
-    const { detectarIntencionContactoIA, verificarYActualizarContactoSiEsNecesario } = await import('../../funciones/helpers/contactosIAHelper.mjs')
-    const esDatosContacto = await detectarIntencionContactoIA(txt)
-    if (esDatosContacto) {
-      console.log("🛡️ [FLOWIAINFO][capture][AgruparMensaje] Se va a actualizar contacto. Contacto en cache:", contacto)
-      await verificarYActualizarContactoSiEsNecesario(txt, phone, contacto, datos)
-      contacto = getContactoByTelefono(phone)
-    }
+  // ------ SIEMPRE chequear si hay nuevos datos de contacto ------
+  const { detectarIntencionContactoIA, verificarYActualizarContactoSiEsNecesario } = await import('../../funciones/helpers/contactosIAHelper.mjs')
+  const esDatosContacto = await detectarIntencionContactoIA(txt)
+  if (esDatosContacto) {
+    console.log("🛡️ [FLOWIAINFO][capture][AgruparMensaje] Se va a actualizar contacto. Contacto en cache:", contacto)
+    await verificarYActualizarContactoSiEsNecesario(txt, phone, contacto, datos)
+    contacto = getContactoByTelefono(phone)
+  }
 
-    const estado = {
-      esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-      contacto: contacto || {}
-    }
-// === AUDITORÍA DE SECCIONES ENVIADAS ===
+  const estado = {
+    esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+    contacto: contacto || {}
+  }
+
+  // === AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (en cada mensaje) ===
   const seccionesEnviadas = [];
   for (const [clave, contenido] of Object.entries(bloques)) {
     if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
@@ -415,17 +418,18 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
   }
   console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
-    console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
-const res = await EnviarIA(txt, promptSistema, {
-  ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-}, estado)
+  console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);
 
-// --- AUDITORÍA: Loguear marcadores que la IA solicitó ---
-const marcadoresSolicitados = (res.respuesta.match(/\[SOLICITAR_SECCION: ([^\]]+)\]/gi) || [])
-  .map(x => x.replace(/\[SOLICITAR_SECCION: /i, '').replace(']', '').trim());
-if (marcadoresSolicitados.length) {
-  console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
-}
+  const res = await EnviarIA(txt, promptSistema, {
+    ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
+  }, estado)
+
+  // --- AUDITORÍA: Loguear marcadores que la IA solicitó ---
+  const marcadoresSolicitados = (res.respuesta.match(/\[SOLICITAR_SECCION: ([^\]]+)\]/gi) || [])
+    .map(x => x.replace(/\[SOLICITAR_SECCION: /i, '').replace(']', '').trim());
+  if (marcadoresSolicitados.length) {
+    console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
+  }
 
 await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
 await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
