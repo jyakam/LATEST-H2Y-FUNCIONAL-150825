@@ -280,7 +280,7 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
   await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt);
 
   await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-});
+})
 
   .addAction({ capture: true }, async (ctx, tools) => {
   const { flowDynamic, endFlow, gotoFlow, provider, state } = tools
