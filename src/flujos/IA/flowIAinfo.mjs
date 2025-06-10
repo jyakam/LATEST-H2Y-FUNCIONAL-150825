@@ -230,7 +230,7 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
       }
     }
 
-   AgruparMensaje(detectar, async (txt) => {
+  AgruparMensaje(detectar, async (txt) => {
   // Guardar mensaje del cliente en el historial
   actualizarHistorialConversacion(txt, 'cliente', state);
   Escribiendo(ctx)
@@ -280,7 +280,9 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
   await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt);
 
   await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-})
+}) // <-- ESTE ES EL PARÉNTESIS QUE FALTABA PARA CERRAR AgruparMensaje
+
+  .addAction({ capture: true }, async (ctx, tools) => {
 
   .addAction({ capture: true }, async (ctx, tools) => {
   const { flowDynamic, endFlow, gotoFlow, provider, state } = tools
