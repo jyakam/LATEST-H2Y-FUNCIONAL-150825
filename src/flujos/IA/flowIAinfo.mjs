@@ -110,52 +110,15 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   categoriaProductos: categoriaDetectada,
   incluirTestimonios: esConsultaTestimonios
 });
-// === DEBUG DE BLOQUES Y PROMPT (Auditoría previa) ===
-console.log('🟢 [DEBUG][AUDIT] promptSistema:', typeof promptSistema === 'string' ? promptSistema.substring(0, 400) : '(no-string)');
-console.log('🟢 [DEBUG][AUDIT] bloques disponibles:', bloques ? Object.keys(bloques) : '(sin bloques)');
-console.log('🟢 [DEBUG][AUDIT] PASOS_FLUJO:', Array.isArray(bloques.PASOS_FLUJO) ? bloques.PASOS_FLUJO.length : '(no-array)');
-console.log('🟢 [DEBUG][AUDIT] CATEGORIAS_PRODUCTOS:', typeof bloques.CATEGORIAS_PRODUCTOS === 'object' && bloques.CATEGORIAS_PRODUCTOS !== null ? Object.keys(bloques.CATEGORIAS_PRODUCTOS) : '(no-object)');
-
-// === BLOQUE AUDIT DETALLADO DE CONTENIDO ENVIADO A IA ===
-
-// 1. Secciones principales BC
+// AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (dinámicamente, sin importar el nombre)
 const seccionesEnviadas = [];
 for (const [clave, contenido] of Object.entries(bloques)) {
-  // Solo bloques tipo string, que no sean pasos ni categorías ni objetos
-  if (
-    typeof contenido === 'string' &&
-    !clave.startsWith('PASO') &&
-    !clave.startsWith('CATEGORIA') &&
-    !['PASOS_FLUJO', 'CATEGORIAS_PRODUCTOS'].includes(clave) &&
-    contenido.length > 0 &&
-    promptSistema.includes(contenido)
-  ) {
+  // Solo chequea bloques que sean string y tengan contenido significativo (evita objetos o arrays como PASOS_FLUJO)
+  if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
     seccionesEnviadas.push(clave);
   }
 }
-
-// 2. Pasos del flujo
-const pasosEnviados = [];
-if (Array.isArray(bloques.PASOS_FLUJO)) {
-  bloques.PASOS_FLUJO.forEach((paso, idx) => {
-    if (typeof paso === 'string' && paso.length > 0 && promptSistema.includes(paso)) {
-      pasosEnviados.push(`PASO ${idx + 1}`);
-    }
-  });
-}
-
-// 3. Categorías de productos
-const categoriasEnviadas = [];
-if (typeof bloques.CATEGORIAS_PRODUCTOS === 'object' && bloques.CATEGORIAS_PRODUCTOS !== null) {
-  Object.entries(bloques.CATEGORIAS_PRODUCTOS).forEach(([cat, contenido]) => {
-    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
-      categoriasEnviadas.push(cat);
-    }
-  });
-}
-
-// 4. Mostrar TODO junto en un solo log AUDIT, bien formateado
-console.log(`📝 [AUDIT] El cliente preguntó: "${typeof message !== 'undefined' ? message : txt}"\n  → Secciones BC: [${seccionesEnviadas.join(', ') || 'Ninguna'}]\n  → Pasos Flujo: [${pasosEnviados.join(', ') || 'Ninguno'}]\n  → Categorías Productos: [${categoriasEnviadas.join(', ') || 'Ninguna'}]`);
+console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
     let contacto = getContactoByTelefono(phone)
@@ -285,52 +248,6 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${typeof message !== 'undefined
         esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
         contacto: contacto || {}
       }
-    // === DEBUG DE BLOQUES Y PROMPT (Auditoría previa) ===
-console.log('🟢 [DEBUG][AUDIT] promptSistema:', typeof promptSistema === 'string' ? promptSistema.substring(0, 400) : '(no-string)');
-console.log('🟢 [DEBUG][AUDIT] bloques disponibles:', bloques ? Object.keys(bloques) : '(sin bloques)');
-console.log('🟢 [DEBUG][AUDIT] PASOS_FLUJO:', Array.isArray(bloques.PASOS_FLUJO) ? bloques.PASOS_FLUJO.length : '(no-array)');
-console.log('🟢 [DEBUG][AUDIT] CATEGORIAS_PRODUCTOS:', typeof bloques.CATEGORIAS_PRODUCTOS === 'object' && bloques.CATEGORIAS_PRODUCTOS !== null ? Object.keys(bloques.CATEGORIAS_PRODUCTOS) : '(no-object)');
-
-// === BLOQUE AUDIT DETALLADO DE CONTENIDO ENVIADO A IA ===
-
-// 1. Secciones principales BC
-const seccionesEnviadas = [];
-for (const [clave, contenido] of Object.entries(bloques)) {
-  // Solo bloques tipo string, que no sean pasos ni categorías ni objetos
-  if (
-    typeof contenido === 'string' &&
-    !clave.startsWith('PASO') &&
-    !clave.startsWith('CATEGORIA') &&
-    !['PASOS_FLUJO', 'CATEGORIAS_PRODUCTOS'].includes(clave) &&
-    contenido.length > 0 &&
-    promptSistema.includes(contenido)
-  ) {
-    seccionesEnviadas.push(clave);
-  }
-}
-
-// 2. Pasos del flujo
-const pasosEnviados = [];
-if (Array.isArray(bloques.PASOS_FLUJO)) {
-  bloques.PASOS_FLUJO.forEach((paso, idx) => {
-    if (typeof paso === 'string' && paso.length > 0 && promptSistema.includes(paso)) {
-      pasosEnviados.push(`PASO ${idx + 1}`);
-    }
-  });
-}
-
-// 3. Categorías de productos
-const categoriasEnviadas = [];
-if (typeof bloques.CATEGORIAS_PRODUCTOS === 'object' && bloques.CATEGORIAS_PRODUCTOS !== null) {
-  Object.entries(bloques.CATEGORIAS_PRODUCTOS).forEach(([cat, contenido]) => {
-    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
-      categoriasEnviadas.push(cat);
-    }
-  });
-}
-
-// 4. Mostrar TODO junto en un solo log AUDIT, bien formateado
-console.log(`📝 [AUDIT] El cliente preguntó: "${typeof message !== 'undefined' ? message : txt}"\n  → Secciones BC: [${seccionesEnviadas.join(', ') || 'Ninguna'}]\n  → Pasos Flujo: [${pasosEnviados.join(', ') || 'Ninguno'}]\n  → Categorías Productos: [${categoriasEnviadas.join(', ') || 'Ninguna'}]`);
 
       console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
 const res = await EnviarIA(txt, promptSistema, {
@@ -385,52 +302,15 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   categoriaProductos: categoriaDetectada,
   incluirTestimonios: esConsultaTestimonios
 });
-// === DEBUG DE BLOQUES Y PROMPT (Auditoría previa) ===
-console.log('🟢 [DEBUG][AUDIT] promptSistema:', typeof promptSistema === 'string' ? promptSistema.substring(0, 400) : '(no-string)');
-console.log('🟢 [DEBUG][AUDIT] bloques disponibles:', bloques ? Object.keys(bloques) : '(sin bloques)');
-console.log('🟢 [DEBUG][AUDIT] PASOS_FLUJO:', Array.isArray(bloques.PASOS_FLUJO) ? bloques.PASOS_FLUJO.length : '(no-array)');
-console.log('🟢 [DEBUG][AUDIT] CATEGORIAS_PRODUCTOS:', typeof bloques.CATEGORIAS_PRODUCTOS === 'object' && bloques.CATEGORIAS_PRODUCTOS !== null ? Object.keys(bloques.CATEGORIAS_PRODUCTOS) : '(no-object)');
-
-// === BLOQUE AUDIT DETALLADO DE CONTENIDO ENVIADO A IA ===
-
-// 1. Secciones principales BC
+// AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (dinámicamente, sin importar el nombre)
 const seccionesEnviadas = [];
 for (const [clave, contenido] of Object.entries(bloques)) {
-  // Solo bloques tipo string, que no sean pasos ni categorías ni objetos
-  if (
-    typeof contenido === 'string' &&
-    !clave.startsWith('PASO') &&
-    !clave.startsWith('CATEGORIA') &&
-    !['PASOS_FLUJO', 'CATEGORIAS_PRODUCTOS'].includes(clave) &&
-    contenido.length > 0 &&
-    promptSistema.includes(contenido)
-  ) {
+  // Solo chequea bloques que sean string y tengan contenido significativo (evita objetos o arrays como PASOS_FLUJO)
+  if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
     seccionesEnviadas.push(clave);
   }
 }
-
-// 2. Pasos del flujo
-const pasosEnviados = [];
-if (Array.isArray(bloques.PASOS_FLUJO)) {
-  bloques.PASOS_FLUJO.forEach((paso, idx) => {
-    if (typeof paso === 'string' && paso.length > 0 && promptSistema.includes(paso)) {
-      pasosEnviados.push(`PASO ${idx + 1}`);
-    }
-  });
-}
-
-// 3. Categorías de productos
-const categoriasEnviadas = [];
-if (typeof bloques.CATEGORIAS_PRODUCTOS === 'object' && bloques.CATEGORIAS_PRODUCTOS !== null) {
-  Object.entries(bloques.CATEGORIAS_PRODUCTOS).forEach(([cat, contenido]) => {
-    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
-      categoriasEnviadas.push(cat);
-    }
-  });
-}
-
-// 4. Mostrar TODO junto en un solo log AUDIT, bien formateado
-console.log(`📝 [AUDIT] El cliente preguntó: "${typeof message !== 'undefined' ? message : txt}"\n  → Secciones BC: [${seccionesEnviadas.join(', ') || 'Ninguna'}]\n  → Pasos Flujo: [${pasosEnviados.join(', ') || 'Ninguno'}]\n  → Categorías Productos: [${categoriasEnviadas.join(', ') || 'Ninguna'}]`);
+console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
   await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
 
@@ -518,54 +398,8 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${typeof message !== 'undefined
       esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
       contacto: contacto || {}
     }
-// === DEBUG DE BLOQUES Y PROMPT (Auditoría previa) ===
-console.log('🟢 [DEBUG][AUDIT] promptSistema:', typeof promptSistema === 'string' ? promptSistema.substring(0, 400) : '(no-string)');
-console.log('🟢 [DEBUG][AUDIT] bloques disponibles:', bloques ? Object.keys(bloques) : '(sin bloques)');
-console.log('🟢 [DEBUG][AUDIT] PASOS_FLUJO:', Array.isArray(bloques.PASOS_FLUJO) ? bloques.PASOS_FLUJO.length : '(no-array)');
-console.log('🟢 [DEBUG][AUDIT] CATEGORIAS_PRODUCTOS:', typeof bloques.CATEGORIAS_PRODUCTOS === 'object' && bloques.CATEGORIAS_PRODUCTOS !== null ? Object.keys(bloques.CATEGORIAS_PRODUCTOS) : '(no-object)');
 
-// === BLOQUE AUDIT DETALLADO DE CONTENIDO ENVIADO A IA ===
-
-// 1. Secciones principales BC
-const seccionesEnviadas = [];
-for (const [clave, contenido] of Object.entries(bloques)) {
-  // Solo bloques tipo string, que no sean pasos ni categorías ni objetos
-  if (
-    typeof contenido === 'string' &&
-    !clave.startsWith('PASO') &&
-    !clave.startsWith('CATEGORIA') &&
-    !['PASOS_FLUJO', 'CATEGORIAS_PRODUCTOS'].includes(clave) &&
-    contenido.length > 0 &&
-    promptSistema.includes(contenido)
-  ) {
-    seccionesEnviadas.push(clave);
-  }
-}
-
-// 2. Pasos del flujo
-const pasosEnviados = [];
-if (Array.isArray(bloques.PASOS_FLUJO)) {
-  bloques.PASOS_FLUJO.forEach((paso, idx) => {
-    if (typeof paso === 'string' && paso.length > 0 && promptSistema.includes(paso)) {
-      pasosEnviados.push(`PASO ${idx + 1}`);
-    }
-  });
-}
-
-// 3. Categorías de productos
-const categoriasEnviadas = [];
-if (typeof bloques.CATEGORIAS_PRODUCTOS === 'object' && bloques.CATEGORIAS_PRODUCTOS !== null) {
-  Object.entries(bloques.CATEGORIAS_PRODUCTOS).forEach(([cat, contenido]) => {
-    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
-      categoriasEnviadas.push(cat);
-    }
-  });
-}
-
-// 4. Mostrar TODO junto en un solo log AUDIT, bien formateado
-console.log(`📝 [AUDIT] El cliente preguntó: "${typeof message !== 'undefined' ? message : txt}"\n  → Secciones BC: [${seccionesEnviadas.join(', ') || 'Ninguna'}]\n  → Pasos Flujo: [${pasosEnviados.join(', ') || 'Ninguno'}]\n  → Categorías Productos: [${categoriasEnviadas.join(', ') || 'Ninguna'}]`);
-
-    console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+    cconsole.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
 const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
