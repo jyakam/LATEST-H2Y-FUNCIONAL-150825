@@ -110,15 +110,6 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   categoriaProductos: categoriaDetectada,
   incluirTestimonios: esConsultaTestimonios
 });
-// AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (dinámicamente, sin importar el nombre)
-const seccionesEnviadas = [];
-for (const [clave, contenido] of Object.entries(bloques)) {
-  // Solo chequea bloques que sean string y tengan contenido significativo (evita objetos o arrays como PASOS_FLUJO)
-  if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
-    seccionesEnviadas.push(clave);
-  }
-}
-console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
     let contacto = getContactoByTelefono(phone)
@@ -231,7 +222,16 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
     }
 
     AgruparMensaje(detectar, async (txt) => {
-      // Guardar mensaje del cliente en el historial
+      // === AUDITORÍA DE SECCIONES/PASOS/CATEGORÍAS ENVIADAS A LA IA ===
+  const seccionesEnviadas = [];
+  for (const [clave, contenido] of Object.entries(bloques)) {
+    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
+      seccionesEnviadas.push(clave);
+    }
+  }
+  console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
+
+    // Guardar mensaje del cliente en el historial
       actualizarHistorialConversacion(txt, 'cliente', state);
       Escribiendo(ctx)
       console.log('🧾 [IAINFO] Texto agrupado final del usuario:', txt)
@@ -302,16 +302,6 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   categoriaProductos: categoriaDetectada,
   incluirTestimonios: esConsultaTestimonios
 });
-// AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (dinámicamente, sin importar el nombre)
-const seccionesEnviadas = [];
-for (const [clave, contenido] of Object.entries(bloques)) {
-  // Solo chequea bloques que sean string y tengan contenido significativo (evita objetos o arrays como PASOS_FLUJO)
-  if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
-    seccionesEnviadas.push(clave);
-  }
-}
-console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
-
   await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
 
   // Detecta y guarda nombre/email si está presente literal
@@ -370,7 +360,16 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
   }
 
   AgruparMensaje(detectar, async (txt) => {
-    // Guardar mensaje del cliente en el historial
+     // === AUDITORÍA DE SECCIONES/PASOS/CATEGORÍAS ENVIADAS A LA IA ===
+  const seccionesEnviadas = [];
+  for (const [clave, contenido] of Object.entries(bloques)) {
+    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
+      seccionesEnviadas.push(clave);
+    }
+  }
+  console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
+
+  // Guardar mensaje del cliente en el historial
     actualizarHistorialConversacion(txt, 'cliente', state);
     if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow)
     reset(ctx, gotoFlow, BOT.IDLE_TIME * 60)
@@ -399,7 +398,7 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
       contacto: contacto || {}
     }
 
-    cconsole.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+    console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
 const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
