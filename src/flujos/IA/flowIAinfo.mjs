@@ -230,57 +230,44 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
       }
     }
 
-  AgruparMensaje(detectar, async (txt) => {
-  // Guardar mensaje del cliente en el historial
-  actualizarHistorialConversacion(txt, 'cliente', state);
-  Escribiendo(ctx)
-  console.log('🧾 [IAINFO] Texto agrupado final del usuario:', txt)
+    AgruparMensaje(detectar, async (txt) => {
+      // Guardar mensaje del cliente en el historial
+      actualizarHistorialConversacion(txt, 'cliente', state);
+      Escribiendo(ctx)
+      console.log('🧾 [IAINFO] Texto agrupado final del usuario:', txt)
 
-  const productos = await obtenerProductosCorrectos(txt, state)
-  const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : ''
+      const productos = await obtenerProductosCorrectos(txt, state)
+      const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : ''
 
-  if (productos.length) {
-    await state.update({ productosUltimaSugerencia: productos })
-    console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`)
-  }
+      if (productos.length) {
+        await state.update({ productosUltimaSugerencia: productos })
+        console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`)
+      }
 
-  const estado = {
-    esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-    contacto: contacto || {}
-  }
+      const estado = {
+        esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+        contacto: contacto || {}
+      }
 
-  // ⚠️ **NO vuelvas a construir promptSistema aquí, usa el que viene del flujo principal**
-  // Y usa bloques del scope principal
+      console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+const res = await EnviarIA(txt, promptSistema, {
+  ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
+}, estado)
 
-  // AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (dinámicamente, sin importar el nombre)
-  const seccionesEnviadas = [];
-  for (const [clave, contenido] of Object.entries(bloques)) {
-    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
-      seccionesEnviadas.push(clave);
-    }
-  }
-  console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
+// --- AUDITORÍA: Loguear marcadores que la IA solicitó ---
+const marcadoresSolicitados = (res.respuesta.match(/\[SOLICITAR_SECCION: ([^\]]+)\]/gi) || [])
+  .map(x => x.replace(/\[SOLICITAR_SECCION: /i, '').replace(']', '').trim());
+if (marcadoresSolicitados.length) {
+  console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
+}
 
-  // Log del prompt para depuración
-  console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);
+console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
 
-  const res = await EnviarIA(txt, promptSistema, {
-    ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-  }, estado)
+await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt);
 
-  // --- AUDITORÍA: Loguear marcadores que la IA solicitó ---
-  const marcadoresSolicitados = (res.respuesta.match(/\[SOLICITAR_SECCION: ([^\]]+)\]/gi) || [])
-    .map(x => x.replace(/\[SOLICITAR_SECCION: /i, '').replace(']', '').trim());
-  if (marcadoresSolicitados.length) {
-    console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
-  }
-
-  console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
-
-  await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt);
-
-  await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-}) // <-- ESTE ES EL PARÉNTESIS QUE FALTABA PARA CERRAR AgruparMensaje
+await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+    })
+  })
 
   .addAction({ capture: true }, async (ctx, tools) => {
   const { flowDynamic, endFlow, gotoFlow, provider, state } = tools
@@ -412,24 +399,8 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
       contacto: contacto || {}
     }
 
-    console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
-// --- Construye el prompt optimizado ---
-const promptSistema = armarPromptOptimizado(state, bloques, {
-  incluirProductos: esConsultaProductos,
-  categoriaProductos: categoriaDetectada,
-  incluirTestimonios: esConsultaTestimonios
-});
-
-// AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (dinámicamente, sin importar el nombre)
-const seccionesEnviadas = [];
-for (const [clave, contenido] of Object.entries(bloques)) {
-  if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
-    seccionesEnviadas.push(clave);
-  }
-}
-console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
-
-        const res = await EnviarIA(txt, promptSistema, {
+    cconsole.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
 
