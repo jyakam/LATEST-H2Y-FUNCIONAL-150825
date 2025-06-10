@@ -283,8 +283,6 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
 }) // <-- ESTE ES EL PARÉNTESIS QUE FALTABA PARA CERRAR AgruparMensaje
 
   .addAction({ capture: true }, async (ctx, tools) => {
-
-  .addAction({ capture: true }, async (ctx, tools) => {
   const { flowDynamic, endFlow, gotoFlow, provider, state } = tools
   const phone = ctx.from.split('@')[0]
   const message = ctx.body.trim()
