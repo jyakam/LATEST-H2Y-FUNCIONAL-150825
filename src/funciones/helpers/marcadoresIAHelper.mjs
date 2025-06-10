@@ -21,10 +21,12 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
   let respuestaActual = res
 
   while (seccionesSolicitadas && intentos < maxIntentos) {
+    console.log(`🔍 [MARCADORES] IA solicitó las siguientes secciones: ${seccionesSolicitadas.join(', ')}`)
+
     const bloques = ARCHIVO.PROMPT_BLOQUES
 
     let nuevosBloques = []
-    const pasoFlujoActual = state.get('pasoFlujoActual') ?? 0
+    let pasoFlujoActual = state.get('pasoFlujoActual') ?? 0
     const promptBase = [
       bloques['seccion_0_introduccion_general'] || '',
       (bloques.PASOS_FLUJO && bloques.PASOS_FLUJO[pasoFlujoActual]) || ''
@@ -32,6 +34,17 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
     nuevosBloques.push(promptBase)
 
     seccionesSolicitadas.forEach(nombreSeccion => {
+      // Detectar si el marcador es un PASO del flujo (ej: PASO_2)
+      const matchPaso = nombreSeccion.match(/^PASO[_\s-]?(\d+)$/i)
+      if (matchPaso) {
+        const nuevoPaso = Number(matchPaso[1]) - 1 // Índice de array, comienza en 0
+        if (!isNaN(nuevoPaso)) {
+          pasoFlujoActual = nuevoPaso
+          state.update({ pasoFlujoActual: nuevoPaso })
+          console.log(`🔄 [MARCADORES] Avanzando a PASO ${nuevoPaso + 1} (índice: ${nuevoPaso})`)
+        }
+      }
+
       let clave = Object.keys(bloques).find(
         k => k.toLowerCase() === nombreSeccion.toLowerCase()
       )
@@ -50,6 +63,11 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
 
     const nuevoPrompt = nuevosBloques.filter(Boolean).join('\n\n')
 
+    // LOG para ver qué prompt final se manda (puedes comentar si es muy largo)
+    console.log('📝 [MARCADORES] Nuevo PROMPT con las secciones solicitadas:\n',
+      nuevosBloques.map((b, i) => `--- BLOQUE ${i + 1} ---\n${b.substring(0, 300)}\n...`).join('\n\n')
+    );
+
     respuestaActual = await EnviarIA(txt, nuevoPrompt, {
       ...tools,
       promptExtra: ''
@@ -57,10 +75,14 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
       esClienteNuevo: state.get('contacto')?.NOMBRE === 'Sin Nombre',
       contacto: state.get('contacto') || {}
     })
+
     console.log('🟣 [TRIGGER] Respuesta recibida tras agregar secciones:', respuestaActual?.respuesta)
     seccionesSolicitadas = detectarSeccionesSolicitadas(respuestaActual.respuesta)
     intentos++
   }
 
+  // Al terminar, log del paso actual
+  let pasoActualFinal = state.get('pasoFlujoActual') ?? 0
+  console.log(`✅ [MARCADORES] Paso de flujo actual después del ciclo: PASO ${pasoActualFinal + 1} (índice: ${pasoActualFinal})`)
   return respuestaActual
 }
