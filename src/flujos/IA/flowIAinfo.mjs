@@ -248,6 +248,14 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
         esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
         contacto: contacto || {}
       }
+      // === AUDITORÍA DE SECCIONES ENVIADAS ===
+  const seccionesEnviadas = [];
+  for (const [clave, contenido] of Object.entries(bloques)) {
+    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
+      seccionesEnviadas.push(clave);
+    }
+  }
+  console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
       console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
 const res = await EnviarIA(txt, promptSistema, {
@@ -398,8 +406,16 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
       esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
       contacto: contacto || {}
     }
+// === AUDITORÍA DE SECCIONES ENVIADAS ===
+  const seccionesEnviadas = [];
+  for (const [clave, contenido] of Object.entries(bloques)) {
+    if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
+      seccionesEnviadas.push(clave);
+    }
+  }
+  console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
-    cconsole.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+    console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
 const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
