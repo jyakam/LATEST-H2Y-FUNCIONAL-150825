@@ -222,6 +222,7 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
     }
 
     AgruparMensaje(detectar, async (txt) => {
+       console.log('🚨🚨🚨 PRUEBA: EL CÓDIGO FLOWIAINFO.MJS SE ESTÁ EJECUTANDO 🚨🚨🚨');
       // === AUDITORÍA DE SECCIONES/PASOS/CATEGORÍAS ENVIADAS A LA IA ===
   const seccionesEnviadas = [];
   for (const [clave, contenido] of Object.entries(bloques)) {
@@ -360,6 +361,7 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   }
 
   AgruparMensaje(detectar, async (txt) => {
+     console.log('🚨🚨🚨 PRUEBA: EL CÓDIGO FLOWIAINFO.MJS SE ESTÁ EJECUTANDO 🚨🚨🚨');
      // === AUDITORÍA DE SECCIONES/PASOS/CATEGORÍAS ENVIADAS A LA IA ===
   const seccionesEnviadas = [];
   for (const [clave, contenido] of Object.entries(bloques)) {
