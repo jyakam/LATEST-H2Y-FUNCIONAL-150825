@@ -230,7 +230,7 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
       }
     }
 
-   AgruparMensaje(detectar, async (txt) => {
+  AgruparMensaje(detectar, async (txt) => {
   // Guardar mensaje del cliente en el historial
   actualizarHistorialConversacion(txt, 'cliente', state);
   Escribiendo(ctx)
@@ -249,12 +249,26 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
     contacto: contacto || {}
   }
 
-  // === AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (en cada mensaje) ===
+  // === AUDITORÍA: Detectar qué bloques/secciones/categorías y PASOS se están enviando a la IA (en cada mensaje) ===
   const seccionesEnviadas = [];
   for (const [clave, contenido] of Object.entries(bloques)) {
     if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
       seccionesEnviadas.push(clave);
     }
+  }
+  if (Array.isArray(bloques.PASOS_FLUJO)) {
+    bloques.PASOS_FLUJO.forEach((paso, idx) => {
+      if (paso && promptSistema.includes(paso)) {
+        seccionesEnviadas.push(`PASO_${idx + 1}`);
+      }
+    });
+  }
+  if (bloques.CATEGORIAS_PRODUCTOS && typeof bloques.CATEGORIAS_PRODUCTOS === 'object') {
+    Object.entries(bloques.CATEGORIAS_PRODUCTOS).forEach(([catClave, catContenido]) => {
+      if (catContenido && promptSistema.includes(catContenido)) {
+        seccionesEnviadas.push(`CATEGORIA_${catClave}`);
+      }
+    });
   }
   console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
@@ -271,12 +285,12 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
     console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
   }
 
-console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
+  console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
 
-await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt);
+  await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt);
 
-await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-    })
+  await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+})
   })
 
   .addAction({ capture: true }, async (ctx, tools) => {
@@ -379,7 +393,7 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
     }
   }
 
- AgruparMensaje(detectar, async (txt) => {
+AgruparMensaje(detectar, async (txt) => {
   // Guardar mensaje del cliente en el historial
   actualizarHistorialConversacion(txt, 'cliente', state);
   if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow)
@@ -409,12 +423,26 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
     contacto: contacto || {}
   }
 
-  // === AUDITORÍA: Detectar qué bloques/secciones del BC se están enviando a la IA (en cada mensaje) ===
+  // === AUDITORÍA: Detectar qué bloques/secciones/categorías y PASOS se están enviando a la IA (en cada mensaje) ===
   const seccionesEnviadas = [];
   for (const [clave, contenido] of Object.entries(bloques)) {
     if (typeof contenido === 'string' && contenido.length > 0 && promptSistema.includes(contenido)) {
       seccionesEnviadas.push(clave);
     }
+  }
+  if (Array.isArray(bloques.PASOS_FLUJO)) {
+    bloques.PASOS_FLUJO.forEach((paso, idx) => {
+      if (paso && promptSistema.includes(paso)) {
+        seccionesEnviadas.push(`PASO_${idx + 1}`);
+      }
+    });
+  }
+  if (bloques.CATEGORIAS_PRODUCTOS && typeof bloques.CATEGORIAS_PRODUCTOS === 'object') {
+    Object.entries(bloques.CATEGORIAS_PRODUCTOS).forEach(([catClave, catContenido]) => {
+      if (catContenido && promptSistema.includes(catContenido)) {
+        seccionesEnviadas.push(`CATEGORIA_${catClave}`);
+      }
+    });
   }
   console.log(`📝 [AUDIT] El cliente preguntó: "${txt}" → Secciones enviadas a la IA: ${seccionesEnviadas.join(', ')}`);
 
@@ -431,9 +459,9 @@ console.log(`📝 [AUDIT] El cliente preguntó: "${message}" → Secciones envia
     console.log(`🔎 [AUDIT] La IA solicitó estas secciones: ${marcadoresSolicitados.join(', ')}`);
   }
 
-await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
-await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
-  })
+  await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
+  await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
+})
 
   return tools.fallBack()
 })
