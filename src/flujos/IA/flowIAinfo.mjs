@@ -40,7 +40,6 @@ function limpiarClaveCategoria(texto) {
   return (texto || '').toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
 }
 
-// Función que construye el prompt óptimo para la IA:
 function armarPromptOptimizado(state, bloques, opciones = {}) {
   // 1. SIEMPRE incluir SECCION 0 (intro, presentación, reglas básicas)
   const seccion0 = bloques['seccion_0_introduccion_general'] || '';
@@ -49,23 +48,44 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
   const pasos = bloques.PASOS_FLUJO || [];
   const pasoFlujoActual = getPasoFlujoActual(state);
   const textoPaso = pasos[pasoFlujoActual] || '';
+
   // 4. Si hace falta, incluir productos o testimonios (según opciones)
   let textoProductos = '';
+  let categoriaLog = '';
   if (opciones.incluirProductos && opciones.categoriaProductos) {
     const cat = limpiarClaveCategoria(opciones.categoriaProductos);
+    categoriaLog = cat;
     textoProductos = bloques.CATEGORIAS_PRODUCTOS?.[cat] || '';
   }
   let textoTestimonios = '';
   if (opciones.incluirTestimonios) {
     textoTestimonios = bloques['secci_n_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
   }
-  // 5. Une TODO (sin SECCION 1, para que solo la consulte si hace falta)
-  return [
-    seccion0,
-    textoPaso,
-    textoProductos,
-    textoTestimonios
-  ].filter(Boolean).join('\n\n');
+
+  // 5. Construcción del array de bloques que van a la IA
+  const bloquesEnviados = [
+    { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
+    { nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: textoPaso }
+  ];
+
+  if (textoProductos) {
+    bloquesEnviados.push({ nombre: `CATEGORIA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
+  }
+  if (textoTestimonios) {
+    bloquesEnviados.push({ nombre: 'SECCION_4 (Testimonios y FAQ)', texto: textoTestimonios });
+  }
+
+  // 6. LOG detallado para saber exactamente qué secciones/pasos van a la IA
+  console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
+  bloquesEnviados.forEach(b => {
+    console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
+  });
+
+  // (Opcional) Si quieres ver el texto completo que se envía, descomenta esta línea:
+  // console.log('📝 [PROMPT DEBUG] PROMPT COMPLETO:\n', bloquesEnviados.map(b => `--- ${b.nombre} ---\n${b.texto}`).join('\n\n'));
+
+  // 7. Retorna el prompt unificado para la IA
+  return bloquesEnviados.map(b => b.texto).filter(Boolean).join('\n\n');
 }
 
 // IMPORTANTE: Cache de contactos (nuevo sistema)
