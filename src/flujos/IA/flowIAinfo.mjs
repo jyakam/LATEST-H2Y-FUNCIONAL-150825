@@ -220,7 +220,8 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
         console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`)
       }
     }
-
+    
+console.log('🚨 [PRUEBA ANTES DE AGRUPARMENSAJE] Voy a entrar al bloque AgruparMensaje');
     AgruparMensaje(detectar, async (txt) => {
        console.log('🚨🚨🚨 PRUEBA: EL CÓDIGO FLOWIAINFO.MJS SE ESTÁ EJECUTANDO 🚨🚨🚨');
       // === AUDITORÍA DE SECCIONES/PASOS/CATEGORÍAS ENVIADAS A LA IA ===
@@ -360,6 +361,7 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
     }
   }
 
+    console.log('🚨 [PRUEBA ANTES DE AGRUPARMENSAJE] Voy a entrar al bloque AgruparMensaje');
   AgruparMensaje(detectar, async (txt) => {
      console.log('🚨🚨🚨 PRUEBA: EL CÓDIGO FLOWIAINFO.MJS SE ESTÁ EJECUTANDO 🚨🚨🚨');
      // === AUDITORÍA DE SECCIONES/PASOS/CATEGORÍAS ENVIADAS A LA IA ===
