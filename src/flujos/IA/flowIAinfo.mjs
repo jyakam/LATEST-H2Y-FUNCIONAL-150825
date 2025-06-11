@@ -91,13 +91,14 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
   }
 
   // 6. LOG detallado para saber exactamente qué secciones/pasos van a la IA
-  console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
-  bloquesEnviados.forEach(b => {
-    console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
-  });
+console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
+bloquesEnviados.forEach(b => {
+  // Mostrar solo el nombre y la cantidad de caracteres, sin imprimir el texto completo.
+  console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
+});
 
-  // (Opcional) Si quieres ver el texto completo que se envía, descomenta esta línea:
-  // console.log('📝 [PROMPT DEBUG] PROMPT COMPLETO:\n', bloquesEnviados.map(b => `--- ${b.nombre} ---\n${b.texto}`).join('\n\n'));
+// Si necesitas depurar el contenido, descomenta la siguiente línea para mostrar SOLO los primeros 100 caracteres de cada bloque
+// bloquesEnviados.forEach(b => { console.log(`   > ${b.nombre}: "${b.texto.substring(0, 100)}..."`); });
 
   // 7. Retorna el prompt unificado para la IA
   return bloquesEnviados.map(b => b.texto).filter(Boolean).join('\n\n');
