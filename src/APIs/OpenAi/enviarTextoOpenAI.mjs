@@ -66,9 +66,14 @@ _historial.forEach((m, idx) => {
 console.log('Longitud total del prompt (caracteres):', _historial.reduce((acc, m) => acc + (m.content?.length || 0), 0));
 console.log('==========================================================');
 
-// LOG 2: Mostrar SOLO resumen del prompt (NO TODO EL CONTENIDO)
+// LOG 2: Mostrar SOLO un resumen de roles, longitudes y primeros 100 caracteres
 console.log('======= [PROMPT RESUMEN ENVIADO A LA IA] =======');
-console.log(_historial.map(m => `[${m.role}] (${m.content?.length || 0} chars)`).join(' | '));
+_historial.forEach((m, idx) => {
+  const preview = m.content ? m.content.substring(0, 100).replace(/\n/g, ' ') : '';
+  const dots = m.content && m.content.length > 100 ? '... [truncado]' : '';
+  console.log(`[${idx}] (${m.role}) [${m.content?.length || 0} chars]: "${preview}${dots}"`);
+});
+console.log('Longitud total del prompt (caracteres):', _historial.reduce((acc, m) => acc + (m.content?.length || 0), 0));
 console.log('=============================================');
     
     const completion = await openai.chat.completions.create(request)
