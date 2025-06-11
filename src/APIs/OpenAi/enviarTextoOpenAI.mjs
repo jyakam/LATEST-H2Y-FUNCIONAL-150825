@@ -54,18 +54,21 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
       request.function_call = 'auto'
     }
 
-  // LOG 1: Ver historial completo
+  // LOG 1: Ver resumen del historial SIN imprimir el contenido completo
 console.log('================= [DEBUG PROMPT OPENAI] =================');
 console.log('[DEBUG] Largo del historial:', _historial.length);
 _historial.forEach((m, idx) => {
-  console.log(`[${idx}] (${m.role})`, m.content?.substring(0, 350).replace(/\n/g, ' ') + (m.content && m.content.length > 350 ? '... [truncado]' : ''));
+  // Solo muestra el rol, la longitud y un adelanto de 100 caracteres.
+  const preview = m.content ? m.content.substring(0, 100).replace(/\n/g, ' ') : '';
+  const dots = m.content && m.content.length > 100 ? '... [truncado]' : '';
+  console.log(`[${idx}] (${m.role}) [${m.content?.length || 0} chars]: "${preview}${dots}"`);
 });
 console.log('Longitud total del prompt (caracteres):', _historial.reduce((acc, m) => acc + (m.content?.length || 0), 0));
 console.log('==========================================================');
 
-// LOG 2: Mostrar el prompt real en un solo string (como lo ve la IA)
-console.log('======= [PROMPT REAL ENVIADO A LA IA] =======');
-console.log(_historial.map(m => `${m.role}: ${m.content}`).join('\n\n'));
+// LOG 2: Mostrar SOLO resumen del prompt (NO TODO EL CONTENIDO)
+console.log('======= [PROMPT RESUMEN ENVIADO A LA IA] =======');
+console.log(_historial.map(m => `[${m.role}] (${m.content?.length || 0} chars)`).join(' | '));
 console.log('=============================================');
     
     const completion = await openai.chat.completions.create(request)
