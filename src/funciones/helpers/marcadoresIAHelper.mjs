@@ -33,7 +33,7 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
     ].filter(Boolean).join('\n\n')
     nuevosBloques.push(promptBase)
 
-    let seccionActivaNueva = null // <--- NUEVO: para registrar sección especial activa
+    let seccionActivaNueva = null // Para registrar sección especial activa
 
     seccionesSolicitadas.forEach(nombreSeccion => {
       // Detectar si el marcador es un PASO del flujo (ej: PASO_2)
@@ -58,27 +58,27 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
       }
       if (clave) {
         nuevosBloques.push(bloques[clave])
-        seccionActivaNueva = clave // <--- NUEVO: guardar la sección activada
+        seccionActivaNueva = clave // guardar la sección activada
         console.log('🟣 [TRIGGER] Sección agregada al prompt:', clave)
       } else {
         console.warn('🔴 [TRIGGER] No se encontró el bloque:', nombreSeccion)
       }
     })
 
-    // NUEVO: Si hubo una sección activada, la guardamos como activa en el state
+    // Si hubo una sección activada, la guardamos como activa en el state
     if (seccionActivaNueva) {
       await state.update({ seccionActiva: seccionActivaNueva })
       console.log(`💾 [MARCADORES] Sección activa guardada en el state: ${seccionActivaNueva}`)
     }
 
-    const nuevoPrompt = nuevosBloques.filter(Boolean).join('\n\n')
+    // SOLO LOGUEA LOS NOMBRES Y LOS PRIMEROS 200 CARACTERES (no la BC completa)
+    console.log('📝 [MARCADORES] Secciones enviadas a la IA:')
+    nuevosBloques.forEach((bloque, i) => {
+      const preview = (bloque || '').substring(0, 200).replace(/\n/g, ' ')
+      console.log(`   • BLOQUE ${i + 1}: ${preview}${bloque && bloque.length > 200 ? '...' : ''}`)
+    })
 
-    // LOG para ver qué prompt final se manda (puedes comentar si es muy largo)
-    console.log('📝 [MARCADORES] Nuevo PROMPT con las secciones solicitadas:\n',
-      nuevosBloques.map((b, i) => `--- BLOQUE ${i + 1} ---\n${b.substring(0, 300)}\n...`).join('\n\n')
-    );
-
-    respuestaActual = await EnviarIA(txt, nuevoPrompt, {
+    respuestaActual = await EnviarIA(txt, nuevosBloques.filter(Boolean).join('\n\n'), {
       ...tools,
       promptExtra: ''
     }, {
