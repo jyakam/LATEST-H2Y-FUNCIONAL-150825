@@ -62,11 +62,26 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
     textoTestimonios = bloques['secci_n_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
   }
 
-  // 5. Construcción del array de bloques que van a la IA
+    // 5. Construcción del array de bloques que van a la IA
+
+  // Nuevo: Si hay una sección activa en el state, la buscamos y la incluimos.
+  let textoSeccionActiva = '';
+  let nombreSeccionActiva = '';
+  const seccionActiva = state.get('seccionActiva');
+  if (seccionActiva && bloques[seccionActiva]) {
+    textoSeccionActiva = bloques[seccionActiva];
+    nombreSeccionActiva = seccionActiva;
+  }
+
   const bloquesEnviados = [
     { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
     { nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: textoPaso }
   ];
+
+  // Si hay sección activa, la agregamos SIEMPRE después de SECCION 0 y PASO n
+  if (textoSeccionActiva) {
+    bloquesEnviados.push({ nombre: `SECCION_ACTIVA (${nombreSeccionActiva})`, texto: textoSeccionActiva });
+  }
 
   if (textoProductos) {
     bloquesEnviados.push({ nombre: `CATEGORIA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
