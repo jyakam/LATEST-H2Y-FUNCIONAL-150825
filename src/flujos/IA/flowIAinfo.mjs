@@ -276,7 +276,8 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
         contacto: contacto || {}
       }
 
-      console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+      // console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <--- AHORA NO SE VE EN EL LOG
+
 const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
@@ -410,7 +411,7 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
       contacto: contacto || {}
     }
 
-    cconsole.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <-- AGREGA ESTA LÍNEA
+    // console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema);  // <--- AHORA NO SE VE EN EL LOG
 const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
