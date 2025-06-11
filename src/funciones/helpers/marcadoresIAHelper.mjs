@@ -33,6 +33,8 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
     ].filter(Boolean).join('\n\n')
     nuevosBloques.push(promptBase)
 
+    let seccionActivaNueva = null // <--- NUEVO: para registrar sección especial activa
+
     seccionesSolicitadas.forEach(nombreSeccion => {
       // Detectar si el marcador es un PASO del flujo (ej: PASO_2)
       const matchPaso = nombreSeccion.match(/^PASO[_\s-]?(\d+)$/i)
@@ -45,6 +47,7 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
         }
       }
 
+      // Buscar sección pedida
       let clave = Object.keys(bloques).find(
         k => k.toLowerCase() === nombreSeccion.toLowerCase()
       )
@@ -55,11 +58,18 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
       }
       if (clave) {
         nuevosBloques.push(bloques[clave])
+        seccionActivaNueva = clave // <--- NUEVO: guardar la sección activada
         console.log('🟣 [TRIGGER] Sección agregada al prompt:', clave)
       } else {
         console.warn('🔴 [TRIGGER] No se encontró el bloque:', nombreSeccion)
       }
     })
+
+    // NUEVO: Si hubo una sección activada, la guardamos como activa en el state
+    if (seccionActivaNueva) {
+      await state.update({ seccionActiva: seccionActivaNueva })
+      console.log(`💾 [MARCADORES] Sección activa guardada en el state: ${seccionActivaNueva}`)
+    }
 
     const nuevoPrompt = nuevosBloques.filter(Boolean).join('\n\n')
 
@@ -84,5 +94,11 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
   // Al terminar, log del paso actual
   let pasoActualFinal = state.get('pasoFlujoActual') ?? 0
   console.log(`✅ [MARCADORES] Paso de flujo actual después del ciclo: PASO ${pasoActualFinal + 1} (índice: ${pasoActualFinal})`)
+
+  // EXTRA: log para saber cuál es la sección activa al terminar el ciclo
+  if (state.get('seccionActiva')) {
+    console.log(`🔵 [MARCADORES] Sección activa final: ${state.get('seccionActiva')}`)
+  }
+
   return respuestaActual
 }
