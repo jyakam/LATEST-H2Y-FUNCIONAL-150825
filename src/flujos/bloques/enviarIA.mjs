@@ -62,7 +62,7 @@ if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
 
   console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (AUDIO):\n', final)
   // 👇👇 ESTE ES EL NUEVO LOG QUE TE RECOMIENDO AGREGAR 👇👇
-  console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA:\n', guion)
+  console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]')
 
   const res = await EnviarTextoOpenAI(final, funciones.ctx.from, guion, estado)
   console.log('📥 RESPUESTA IA AUDIO:', res)
@@ -72,7 +72,7 @@ if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
   // --- 📝 TEXTO NORMAL ---
   console.log('📤 📄 Enviando texto plano:', msj)
 console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (TEXTO):\n', mensajeFinal)
-console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA:\n', guion)
+console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]')
 
   const res = await EnviarTextoOpenAI(mensajeFinal, funciones.ctx.from, guion, estado)
   console.log('📥 RESPUESTA IA TEXTO:', res)
