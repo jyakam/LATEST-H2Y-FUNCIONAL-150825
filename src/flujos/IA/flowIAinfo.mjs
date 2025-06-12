@@ -62,43 +62,51 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
     textoTestimonios = bloques['secci_n_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
   }
 
-    // 5. Construcción del array de bloques que van a la IA
-
   // Nuevo: Si hay una sección activa en el state, la buscamos y la incluimos.
   let textoSeccionActiva = '';
   let nombreSeccionActiva = '';
   const seccionActiva = state.get('seccionActiva');
-  if (seccionActiva && bloques[seccionActiva]) {
+  if (
+    seccionActiva &&
+    seccionActiva !== 'seccion_0_introduccion_general' &&
+    bloques[seccionActiva]
+  ) {
     textoSeccionActiva = bloques[seccionActiva];
     nombreSeccionActiva = seccionActiva;
   }
 
-  const bloquesEnviados = [
-    { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
-    { nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: textoPaso }
-  ];
+  let bloquesEnviados = [];
 
-  // Si hay sección activa, la agregamos SIEMPRE después de SECCION 0 y PASO n
   if (textoSeccionActiva) {
-    bloquesEnviados.push({ nombre: `SECCION_ACTIVA (${nombreSeccionActiva})`, texto: textoSeccionActiva });
-  }
+    // Si hay sección activa (y no es SECCION 0), SOLO se envía SECCION 0 + SECCION ACTIVA
+    bloquesEnviados = [
+      { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
+      { nombre: `SECCION_ACTIVA (${nombreSeccionActiva})`, texto: textoSeccionActiva }
+    ];
+  } else {
+    // Si NO hay sección activa, flujo normal: SECCION 0 + PASO DEL FLUJO + otros opcionales
+    bloquesEnviados = [
+      { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
+      { nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: textoPaso }
+    ];
 
-  if (textoProductos) {
-    bloquesEnviados.push({ nombre: `CATEGORIA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
-  }
-  if (textoTestimonios) {
-    bloquesEnviados.push({ nombre: 'SECCION_4 (Testimonios y FAQ)', texto: textoTestimonios });
+    if (textoProductos) {
+      bloquesEnviados.push({ nombre: `CATEGORIA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
+    }
+    if (textoTestimonios) {
+      bloquesEnviados.push({ nombre: 'SECCION_4 (Testimonios y FAQ)', texto: textoTestimonios });
+    }
   }
 
   // 6. LOG detallado para saber exactamente qué secciones/pasos van a la IA
-console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
-bloquesEnviados.forEach(b => {
-  // Mostrar solo el nombre y la cantidad de caracteres, sin imprimir el texto completo.
-  console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
-});
+  console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
+  bloquesEnviados.forEach(b => {
+    // Mostrar solo el nombre y la cantidad de caracteres, sin imprimir el texto completo.
+    console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
+  });
 
-// Si necesitas depurar el contenido, descomenta la siguiente línea para mostrar SOLO los primeros 100 caracteres de cada bloque
-// bloquesEnviados.forEach(b => { console.log(`   > ${b.nombre}: "${b.texto.substring(0, 100)}..."`); });
+  // Si necesitas depurar el contenido, descomenta la siguiente línea para mostrar SOLO los primeros 100 caracteres de cada bloque
+  // bloquesEnviados.forEach(b => { console.log(`   > ${b.nombre}: "${b.texto.substring(0, 100)}..."`); });
 
   // 7. Retorna el prompt unificado para la IA
   return bloquesEnviados.map(b => b.texto).filter(Boolean).join('\n\n');
