@@ -70,8 +70,11 @@ if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
 }
 
   // --- 📝 TEXTO NORMAL ---
-  console.log('📤 📄 Enviando texto plano:', msj)
-console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (TEXTO):\n', mensajeFinal)
+console.log('📤 📄 Enviando texto plano:', msj)
+// Opción 1: Solo comenta la línea
+// console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (TEXTO):\n', mensajeFinal)
+// Opción 2: Solo muestra los primeros 50 caracteres
+console.log('🧠 [SNIP] Inicio del MENSAJE FINAL A LA IA:', mensajeFinal.substring(0, 50) + '...')
 console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]')
 
   const res = await EnviarTextoOpenAI(mensajeFinal, funciones.ctx.from, guion, estado)
