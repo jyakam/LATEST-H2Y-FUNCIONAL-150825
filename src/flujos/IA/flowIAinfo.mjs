@@ -438,18 +438,39 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
   // 2. REVISAR SI HAY SECCIÓN ACTIVA ACTUALIZADA TRAS LOS MARCADORES
   // Si hay sección activa distinta de SECCION 0, rearmar el prompt y volver a preguntar a la IA (MISMO TURNO)
   const seccionActiva = state.get('seccionActiva');
-  if (
-    seccionActiva &&
-    seccionActiva !== 'seccion_0_introduccion_general' &&
-    ARCHIVO.PROMPT_BLOQUES[seccionActiva]
-  ) {
-    // Importa la función de armar prompt si no está en este archivo
-    const promptSistema = armarPromptOptimizado(state, ARCHIVO.PROMPT_BLOQUES);
-    // Nueva consulta a la IA, usando el prompt correcto ya con la sección activa
-    res = await EnviarIA(txt, promptSistema, {
-      ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
-    }, {});
-  }
+if (
+  seccionActiva &&
+  seccionActiva !== 'seccion_0_introduccion_general' &&
+  ARCHIVO.PROMPT_BLOQUES[seccionActiva]
+) {
+  // ⚡️ Arma el prompt igual que antes
+  // --- MODIFICACIÓN: También obtiene los bloques con nombre para el log
+  let bloquesEnviados = [];
+
+  // (Lógica igual que armarPromptOptimizado para nombres)
+  const seccion0 = ARCHIVO.PROMPT_BLOQUES['seccion_0_introduccion_general'] || '';
+  const nombreSeccionActiva = seccionActiva;
+  const textoSeccionActiva = ARCHIVO.PROMPT_BLOQUES[seccionActiva];
+
+  bloquesEnviados = [
+    { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
+    { nombre: `SECCION_ACTIVA (${nombreSeccionActiva})`, texto: textoSeccionActiva }
+  ];
+
+  // 🚦 PROMPT DEBUG para este ciclo
+  console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA (por sección activa):');
+  bloquesEnviados.forEach(b => {
+    console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
+  });
+
+  // Une los textos igual que siempre
+  const promptSistema = bloquesEnviados.map(b => b.texto).filter(Boolean).join('\n\n');
+
+  // Envía a la IA con el prompt correcto
+  res = await EnviarIA(txt, promptSistema, {
+    ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
+  }, {});
+}
 
   const respuestaIA = res.respuesta?.toLowerCase?.() || ''
   console.log('🧠 Token recibido de IA:', respuestaIA)
