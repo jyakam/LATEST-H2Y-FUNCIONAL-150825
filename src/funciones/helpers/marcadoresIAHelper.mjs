@@ -5,12 +5,14 @@ import { EnviarIA } from '../../flujos/bloques/enviarIA.mjs'
 
 // Función auxiliar para detectar el marcador
 export function detectarSeccionesSolicitadas(respuesta) {
-  const regex = /\[SOLICITAR_SECCION:\s*([A-Za-z0-9_,-]+)\]/i
-  const match = respuesta.match(regex)
-  if (match) {
-    return match[1].split(',').map(x => x.trim())
+  // Soporta tildes, variantes, dobles corchetes, y busca en todo el texto
+  const regex = /\[SOLICITAR[_\s-]?SECCI[OÓ]N[:：]?\s*([A-Za-z0-9_,-]+)\]/gi;
+  let match;
+  const secciones = [];
+  while ((match = regex.exec(respuesta)) !== null) {
+    secciones.push(...match[1].split(',').map(x => x.trim()));
   }
-  return null
+  return secciones.length ? secciones : null;
 }
 
 // Función principal para el ciclo de marcadores
