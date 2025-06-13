@@ -432,8 +432,24 @@ const res = await EnviarIA(txt, promptSistema, {
 })
 
 async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
-  // 🔵 NUEVO: Ejecuta el ciclo de marcadores antes de responder al usuario
+  // 1. Ejecuta cicloMarcadoresIA, que puede actualizar la sección activa en el state
   res = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state })
+
+  // 2. REVISAR SI HAY SECCIÓN ACTIVA ACTUALIZADA TRAS LOS MARCADORES
+  // Si hay sección activa distinta de SECCION 0, rearmar el prompt y volver a preguntar a la IA (MISMO TURNO)
+  const seccionActiva = state.get('seccionActiva');
+  if (
+    seccionActiva &&
+    seccionActiva !== 'seccion_0_introduccion_general' &&
+    ARCHIVO.PROMPT_BLOQUES[seccionActiva]
+  ) {
+    // Importa la función de armar prompt si no está en este archivo
+    const promptSistema = armarPromptOptimizado(state, ARCHIVO.PROMPT_BLOQUES);
+    // Nueva consulta a la IA, usando el prompt correcto ya con la sección activa
+    res = await EnviarIA(txt, promptSistema, {
+      ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
+    }, {});
+  }
 
   const respuestaIA = res.respuesta?.toLowerCase?.() || ''
   console.log('🧠 Token recibido de IA:', respuestaIA)
