@@ -631,3 +631,4 @@ function encontroProductoExacto(productos, nombreBuscado) {
     return porcentaje >= 0.7
   })
 }
+
