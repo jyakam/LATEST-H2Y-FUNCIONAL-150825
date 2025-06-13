@@ -444,33 +444,29 @@ if (
   ARCHIVO.PROMPT_BLOQUES[seccionActiva]
 ) {
   // ⚡️ Arma el prompt igual que antes
-  // --- MODIFICACIÓN: También obtiene los bloques con nombre para el log
-  let bloquesEnviados = [];
-
-  // (Lógica igual que armarPromptOptimizado para nombres)
   const seccion0 = ARCHIVO.PROMPT_BLOQUES['seccion_0_introduccion_general'] || '';
   const nombreSeccionActiva = seccionActiva;
   const textoSeccionActiva = ARCHIVO.PROMPT_BLOQUES[seccionActiva];
 
-  bloquesEnviados = [
+  const bloquesEnviados = [
     { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
     { nombre: `SECCION_ACTIVA (${nombreSeccionActiva})`, texto: textoSeccionActiva }
   ];
 
-  // 🚦 PROMPT DEBUG para este ciclo
+  // 🚦 LOG combinado, de “entrada” y detalle de bloques:
+  console.log('🟢 [DEBUG] ENTRANDO A BLOQUE DE SECCIÓN ACTIVA EN manejarRespuestaIA');
   console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA (por sección activa):');
   bloquesEnviados.forEach(b => {
     console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
   });
 
-  // Une los textos igual que siempre
   const promptSistema = bloquesEnviados.map(b => b.texto).filter(Boolean).join('\n\n');
 
-  // Envía a la IA con el prompt correcto
   res = await EnviarIA(txt, promptSistema, {
     ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
   }, {});
 }
+
 
   const respuestaIA = res.respuesta?.toLowerCase?.() || ''
   console.log('🧠 Token recibido de IA:', respuestaIA)
