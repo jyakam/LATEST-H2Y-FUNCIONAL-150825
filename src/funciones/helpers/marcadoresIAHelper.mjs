@@ -5,12 +5,14 @@ import { EnviarIA } from '../../flujos/bloques/enviarIA.mjs'
 
 // Función auxiliar para detectar el marcador
 export function detectarSeccionesSolicitadas(respuesta) {
-  // Soporta tildes, variantes, dobles corchetes, y busca en todo el texto
-  const regex = /\[SOLICITAR[_\s-]?SECCI[OÓ]N[:：]?\s*([A-Za-z0-9_,-]+)\]/gi;
+  // Soporta corchetes, paréntesis, llaves, y algunos emojis como delimitador
+  // Puedes agregar o quitar emojis según los que quieras soportar
+  const regex = /([\[\(\{🟦⭐🔥🧩])\s*SOLICITAR[_\s-]?SECCI[OÓ]N[:：]?\s*([A-Za-z0-9_,-]+)\s*([\]\)\}🟦⭐🔥🧩])/gi;
   let match;
   const secciones = [];
   while ((match = regex.exec(respuesta)) !== null) {
-    secciones.push(...match[1].split(',').map(x => x.trim()));
+    // El nombre de la sección queda en match[2]
+    secciones.push(...match[2].split(',').map(x => x.trim()));
   }
   return secciones.length ? secciones : null;
 }
@@ -49,13 +51,13 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
         }
       }
 
-      // Buscar sección pedida
+      // Buscar sección pedida (insensible a mayúsculas/minúsculas)
       let clave = Object.keys(bloques).find(
         k => k.toLowerCase() === nombreSeccion.toLowerCase()
       )
       if (!clave) {
         clave = Object.keys(bloques).find(
-          k => k.toLowerCase().includes(nombreSeccion.toLowerCase())
+          k => k.toLowerCase().replace(/[\s-]/g, '_').includes(nombreSeccion.toLowerCase().replace(/[\s-]/g, '_'))
         )
       }
       if (clave) {
