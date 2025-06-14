@@ -113,8 +113,9 @@ if (seccionesSolicitadas && seccionesSolicitadas.length) {
     nuevasSecciones.forEach(sec => {
       if (!actuales.includes(sec)) actuales.push(sec);
     });
-    await state.update({ seccionesActivas: actuales });
-    console.log(`💾 [MARCADORES] Secciones activas guardadas en el state: [${actuales.join(', ')}]`);
+  await state.update({ seccionesActivas: actuales });
+console.log(`💾 [MARCADORES] Secciones activas guardadas en el state: [${actuales.join(', ')}]`);
+console.log('🔵 [STATE] Secciones activas actuales:', state.get('seccionesActivas') || []);
   }
 }
 
