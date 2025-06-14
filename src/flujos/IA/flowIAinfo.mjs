@@ -62,41 +62,30 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
     textoTestimonios = bloques['secci_n_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
   }
 
-  // Nuevo: Si hay una sección activa en el state, la buscamos y la incluimos.
-  let textoSeccionActiva = '';
-  let nombreSeccionActiva = '';
-  const seccionActiva = state.get('seccionActiva');
-  if (
-    seccionActiva &&
-    seccionActiva !== 'seccion_0_introduccion_general' &&
-    bloques[seccionActiva]
-  ) {
-    textoSeccionActiva = bloques[seccionActiva];
-    nombreSeccionActiva = seccionActiva;
-  }
+ // --- NUEVO: soporte varias secciones activas ---
+const seccionesActivas = state.get('seccionesActivas') || [];
+let bloquesEnviados = [
+  { nombre: 'SECCION_0 (Introducción)', texto: seccion0 }
+];
 
-  let bloquesEnviados = [];
-
-  if (textoSeccionActiva) {
-    // Si hay sección activa (y no es SECCION 0), SOLO se envía SECCION 0 + SECCION ACTIVA
-    bloquesEnviados = [
-      { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
-      { nombre: `SECCION_ACTIVA (${nombreSeccionActiva})`, texto: textoSeccionActiva }
-    ];
-  } else {
-    // Si NO hay sección activa, flujo normal: SECCION 0 + PASO DEL FLUJO + otros opcionales
-    bloquesEnviados = [
-      { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
-      { nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: textoPaso }
-    ];
-
-    if (textoProductos) {
-      bloquesEnviados.push({ nombre: `CATEGORIA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
+// Si hay secciones activas, añade todas (sin SECCION 0, y sin duplicados)
+if (seccionesActivas.length) {
+  seccionesActivas.forEach(sec => {
+    if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
+      bloquesEnviados.push({ nombre: `SECCION_ACTIVA (${sec})`, texto: bloques[sec] });
     }
-    if (textoTestimonios) {
-      bloquesEnviados.push({ nombre: 'SECCION_4 (Testimonios y FAQ)', texto: textoTestimonios });
-    }
+  });
+} else {
+  // Si NO hay secciones activas, flujo normal: SECCION 0 + PASO DEL FLUJO + otros opcionales
+  bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: textoPaso });
+
+  if (textoProductos) {
+    bloquesEnviados.push({ nombre: `CATEGORIA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
   }
+  if (textoTestimonios) {
+    bloquesEnviados.push({ nombre: 'SECCION_4 (Testimonios y FAQ)', texto: textoTestimonios });
+  }
+}
 
   // 6. LOG detallado para saber exactamente qué secciones/pasos van a la IA
   console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
@@ -154,7 +143,8 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   categoriaProductos: categoriaDetectada,
   incluirTestimonios: esConsultaTestimonios
 });
-
+console.log('🟢 [FLOW] Secciones activas en el state:', state.get('seccionesActivas') || []);
+    
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
     let contacto = getContactoByTelefono(phone)
     if (!contacto) {
@@ -331,7 +321,8 @@ const promptSistema = armarPromptOptimizado(state, bloques, {
   categoriaProductos: categoriaDetectada,
   incluirTestimonios: esConsultaTestimonios
 });
-
+console.log('🟢 [FLOW] Secciones activas en el state:', state.get('seccionesActivas') || []);
+    
   await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
 
   // Detecta y guarda nombre/email si está presente literal
