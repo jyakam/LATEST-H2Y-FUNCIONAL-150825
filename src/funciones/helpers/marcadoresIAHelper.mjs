@@ -7,7 +7,7 @@ import { EnviarIA } from '../../flujos/bloques/enviarIA.mjs'
 export function detectarSeccionesSolicitadas(respuesta) {
   // Soporta corchetes, paréntesis, llaves, y algunos emojis como delimitador
   // Puedes agregar o quitar emojis según los que quieras soportar
-  const regex = /([\[\(\{🟦⭐🔥🧩])\s*SOLICITAR[_\s-]?SECCI[OÓ]N[:：]?\s*([A-Za-z0-9_,-]+)\s*([\]\)\}🟦⭐🔥🧩])/gi;
+  const regex = /([\[\(\{🟦⭐🔥🧩])\s*SOLICITAR[_\s-]?SECCI[OÓ]N[:：]?\s*([A-Za-z0-9_ ,-]+)\s*([\]\)\}🟦⭐🔥🧩])/gi;
   let match;
   const secciones = [];
   while ((match = regex.exec(respuesta)) !== null) {
@@ -26,105 +26,72 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
 
   while (seccionesSolicitadas && intentos < maxIntentos) {
     console.log(`🔍 [MARCADORES] IA solicitó las siguientes secciones: ${seccionesSolicitadas.join(', ')}`)
+    console.log('🟠 [MARCADORES] Marcadores detectados en la respuesta de IA:', seccionesSolicitadas);
 
     const bloques = ARCHIVO.PROMPT_BLOQUES
 
-    let nuevosBloques = []
-    let pasoFlujoActual = state.get('pasoFlujoActual') ?? 0
-    const promptBase = [
-      bloques['seccion_0_introduccion_general'] || '',
-      (bloques.PASOS_FLUJO && bloques.PASOS_FLUJO[pasoFlujoActual]) || ''
-    ].filter(Boolean).join('\n\n')
-    nuevosBloques.push(promptBase)
+    let nuevosBloques = [];
+    // Siempre incluir SECCION 0
+    nuevosBloques.push(bloques['seccion_0_introduccion_general'] || '');
 
-    let seccionActivaNueva = null // Para registrar sección especial activa
+    // --- NUEVO: SOLO este ciclo moderno, el anterior lo eliminamos ---
+    if (seccionesSolicitadas && seccionesSolicitadas.length) {
+      const pasos = [];
+      const nuevasSecciones = [];
 
-    seccionesSolicitadas.forEach(nombreSeccion => {
-      // Detectar si el marcador es un PASO del flujo (ej: PASO_2)
-     const matchPaso = nombreSeccion.match(/^PASO[_\s-]?(\d+)$/i)
-if (matchPaso) {
-  const nuevoPaso = Number(matchPaso[1]) - 1 // Índice de array, comienza en 0
-  if (!isNaN(nuevoPaso)) {
-    pasoFlujoActual = nuevoPaso
-    state.update({ pasoFlujoActual: nuevoPaso })
-    const pasosFlujo = bloques.PASOS_FLUJO || [];
-    // ⚠️ Asegúrate que tienes el array de pasos cargado como corresponde
-    if (pasosFlujo[nuevoPaso]) {
-      nuevosBloques.push(pasosFlujo[nuevoPaso].contenido || pasosFlujo[nuevoPaso])
-      console.log(`🔄 [MARCADORES] Añadido PASO ${nuevoPaso + 1} al prompt (índice: ${nuevoPaso})`)
-    } else {
-      console.warn(`❗ [MARCADORES] El PASO ${nuevoPaso + 1} no existe en el array de pasos`)
-    }
-  }
-}
+      seccionesSolicitadas.forEach(nombreSeccion => {
+        // ¿Es un PASO del flujo?
+        const matchPaso = nombreSeccion.match(/^PASO[_\s-]?(\d+)$/i)
+        if (matchPaso) {
+          const nuevoPaso = Number(matchPaso[1]) - 1; // Índice base 0
+          pasos.push(nuevoPaso);
 
-      // Buscar sección pedida (insensible a mayúsculas/minúsculas)
-      let clave = Object.keys(bloques).find(
-        k => k.toLowerCase() === nombreSeccion.toLowerCase()
-      )
-      if (!clave) {
-        clave = Object.keys(bloques).find(
-          k => k.toLowerCase().replace(/[\s-]/g, '_').includes(nombreSeccion.toLowerCase().replace(/[\s-]/g, '_'))
-        )
-      }
-      if (clave) {
-        nuevosBloques.push(bloques[clave])
-        seccionActivaNueva = clave // guardar la sección activada
-        console.log('🟣 [TRIGGER] Sección agregada al prompt:', clave)
-      } else {
-        console.warn('🔴 [TRIGGER] No se encontró el bloque:', nombreSeccion)
-      }
-    })
+          // ACTUALIZACIÓN: Añadir inmediatamente el paso pedido al prompt
+          const pasosFlujo = bloques.PASOS_FLUJO || [];
+          if (pasosFlujo[nuevoPaso]) {
+            nuevosBloques.push(pasosFlujo[nuevoPaso].contenido || pasosFlujo[nuevoPaso]);
+            console.log(`🔄 [MARCADORES] Añadido PASO ${nuevoPaso + 1} al prompt (índice: ${nuevoPaso})`);
+          } else {
+            console.warn(`❗ [MARCADORES] El PASO ${nuevoPaso + 1} no existe en el array de pasos`);
+          }
+        } else {
+          // Si es sección especial, añadir a lista
+          let clave = Object.keys(bloques).find(
+            k => k.toLowerCase() === nombreSeccion.toLowerCase()
+          );
+          if (!clave) {
+            clave = Object.keys(bloques).find(
+              k => k.toLowerCase().replace(/[\s-]/g, '_').includes(nombreSeccion.toLowerCase().replace(/[\s-]/g, '_'))
+            );
+          }
+          if (clave) {
+            nuevasSecciones.push(clave);
+            nuevosBloques.push(bloques[clave]);
+            console.log('🟣 [TRIGGER] Sección agregada al prompt:', clave);
+          } else {
+            console.warn('🔴 [TRIGGER] No se encontró el bloque:', nombreSeccion);
+          }
+        }
+      });
 
-   // ... dentro de cicloMarcadoresIA ...
-
-if (seccionesSolicitadas && seccionesSolicitadas.length) {
-  const pasos = [];
-  const nuevasSecciones = [];
-
-  seccionesSolicitadas.forEach(nombreSeccion => {
-    // ¿Es un PASO del flujo?
-    const matchPaso = nombreSeccion.match(/^PASO[_\s-]?(\d+)$/i)
-    if (matchPaso) {
-      pasos.push(Number(matchPaso[1]) - 1); // Guarda el nuevo paso (índice base 0)
-    } else {
-      // Si es sección especial, añadir a lista
-      // Busca el nombre clave de la sección
-      let clave = Object.keys(bloques).find(
-        k => k.toLowerCase() === nombreSeccion.toLowerCase()
-      );
-      if (!clave) {
-        clave = Object.keys(bloques).find(
-          k => k.toLowerCase().replace(/[\s-]/g, '_').includes(nombreSeccion.toLowerCase().replace(/[\s-]/g, '_'))
-        );
-      }
-      if (clave) {
-        nuevasSecciones.push(clave);
-        console.log('🟣 [TRIGGER] Sección agregada al prompt:', clave);
-      } else {
-        console.warn('🔴 [TRIGGER] No se encontró el bloque:', nombreSeccion);
+      // Si hay algún paso pedido, borra todas las secciones activas y avanza solo el paso.
+      if (pasos.length) {
+        await state.update({
+          pasoFlujoActual: pasos[pasos.length - 1], // Solo toma el último paso pedido
+          seccionesActivas: []
+        });
+        console.log(`💾 [MARCADORES] Secciones activas ELIMINADAS por salto a PASO. Avanzando a PASO ${pasos[pasos.length - 1] + 1}`);
+      } else if (nuevasSecciones.length) {
+        // Si se pidieron secciones, añade todas (sin duplicados)
+        let actuales = state.get('seccionesActivas') || [];
+        nuevasSecciones.forEach(sec => {
+          if (!actuales.includes(sec)) actuales.push(sec);
+        });
+        await state.update({ seccionesActivas: actuales });
+        console.log(`💾 [MARCADORES] Secciones activas guardadas en el state: [${actuales.join(', ')}]`);
+        console.log('🔵 [STATE] Secciones activas actuales:', state.get('seccionesActivas') || []);
       }
     }
-  });
-
-  // Si hay algún paso pedido, borra todas las secciones activas y avanza solo el paso.
-  if (pasos.length) {
-    await state.update({
-      pasoFlujoActual: pasos[pasos.length - 1], // Solo toma el último paso pedido
-      seccionesActivas: []
-    });
-    console.log(`💾 [MARCADORES] Secciones activas ELIMINADAS por salto a PASO. Avanzando a PASO ${pasos[pasos.length - 1] + 1}`);
-  } else if (nuevasSecciones.length) {
-    // Si se pidieron secciones, añade todas (sin duplicados)
-    let actuales = state.get('seccionesActivas') || [];
-    nuevasSecciones.forEach(sec => {
-      if (!actuales.includes(sec)) actuales.push(sec);
-    });
-  await state.update({ seccionesActivas: actuales });
-console.log(`💾 [MARCADORES] Secciones activas guardadas en el state: [${actuales.join(', ')}]`);
-console.log('🔵 [STATE] Secciones activas actuales:', state.get('seccionesActivas') || []);
-  }
-}
 
     // SOLO LOGUEA LOS NOMBRES Y LOS PRIMEROS 200 CARACTERES (no la BC completa)
     console.log('📝 [MARCADORES] Secciones enviadas a la IA:')
@@ -150,10 +117,8 @@ console.log('🔵 [STATE] Secciones activas actuales:', state.get('seccionesActi
   let pasoActualFinal = state.get('pasoFlujoActual') ?? 0
   console.log(`✅ [MARCADORES] Paso de flujo actual después del ciclo: PASO ${pasoActualFinal + 1} (índice: ${pasoActualFinal})`)
 
-  // EXTRA: log para saber cuál es la sección activa al terminar el ciclo
-  if (state.get('seccionActiva')) {
-    console.log(`🔵 [MARCADORES] Sección activa final: ${state.get('seccionActiva')}`)
-  }
+  // EXTRA: log para saber cuáles son las secciones activas al terminar el ciclo
+  console.log('🔵 [STATE] Secciones activas actuales:', state.get('seccionesActivas') || [])
 
   return respuestaActual
 }
