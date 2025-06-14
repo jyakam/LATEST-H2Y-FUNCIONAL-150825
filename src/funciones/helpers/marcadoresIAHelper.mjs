@@ -41,15 +41,22 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, tools) {
 
     seccionesSolicitadas.forEach(nombreSeccion => {
       // Detectar si el marcador es un PASO del flujo (ej: PASO_2)
-      const matchPaso = nombreSeccion.match(/^PASO[_\s-]?(\d+)$/i)
-      if (matchPaso) {
-        const nuevoPaso = Number(matchPaso[1]) - 1 // Índice de array, comienza en 0
-        if (!isNaN(nuevoPaso)) {
-          pasoFlujoActual = nuevoPaso
-          state.update({ pasoFlujoActual: nuevoPaso })
-          console.log(`🔄 [MARCADORES] Avanzando a PASO ${nuevoPaso + 1} (índice: ${nuevoPaso})`)
-        }
-      }
+     const matchPaso = nombreSeccion.match(/^PASO[_\s-]?(\d+)$/i)
+if (matchPaso) {
+  const nuevoPaso = Number(matchPaso[1]) - 1 // Índice de array, comienza en 0
+  if (!isNaN(nuevoPaso)) {
+    pasoFlujoActual = nuevoPaso
+    state.update({ pasoFlujoActual: nuevoPaso })
+    const pasosFlujo = bloques.PASOS_FLUJO || [];
+    // ⚠️ Asegúrate que tienes el array de pasos cargado como corresponde
+    if (pasosFlujo[nuevoPaso]) {
+      nuevosBloques.push(pasosFlujo[nuevoPaso].contenido || pasosFlujo[nuevoPaso])
+      console.log(`🔄 [MARCADORES] Añadido PASO ${nuevoPaso + 1} al prompt (índice: ${nuevoPaso})`)
+    } else {
+      console.warn(`❗ [MARCADORES] El PASO ${nuevoPaso + 1} no existe en el array de pasos`)
+    }
+  }
+}
 
       // Buscar sección pedida (insensible a mayúsculas/minúsculas)
       let clave = Object.keys(bloques).find(
