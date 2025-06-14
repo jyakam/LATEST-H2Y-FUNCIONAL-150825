@@ -426,38 +426,35 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
   // 1. Ejecuta cicloMarcadoresIA, que puede actualizar la sección activa en el state
   res = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state })
 
-  // 2. REVISAR SI HAY SECCIÓN ACTIVA ACTUALIZADA TRAS LOS MARCADORES
-  // Si hay sección activa distinta de SECCION 0, rearmar el prompt y volver a preguntar a la IA (MISMO TURNO)
-  const seccionActiva = state.get('seccionActiva');
+// 2. REVISAR SI HAY SECCIONES ACTIVAS ACTUALIZADAS TRAS LOS MARCADORES
+const seccionesActivas = state.get('seccionesActivas') || [];
 if (
-  seccionActiva &&
-  seccionActiva !== 'seccion_0_introduccion_general' &&
-  ARCHIVO.PROMPT_BLOQUES[seccionActiva]
+  seccionesActivas.length &&
+  !(seccionesActivas.length === 1 && seccionesActivas[0] === 'seccion_0_introduccion_general')
 ) {
-  // ⚡️ Arma el prompt igual que antes
-  const seccion0 = ARCHIVO.PROMPT_BLOQUES['seccion_0_introduccion_general'] || '';
-  const nombreSeccionActiva = seccionActiva;
-  const textoSeccionActiva = ARCHIVO.PROMPT_BLOQUES[seccionActiva];
+  const bloques = ARCHIVO.PROMPT_BLOQUES;
 
-  const bloquesEnviados = [
-    { nombre: 'SECCION_0 (Introducción)', texto: seccion0 },
-    { nombre: `SECCION_ACTIVA (${nombreSeccionActiva})`, texto: textoSeccionActiva }
-  ];
+  // Usamos armarPromptOptimizado para armar exactamente como lo necesitas
+  const promptSistema = armarPromptOptimizado(state, bloques);
 
-  // 🚦 LOG combinado, de “entrada” y detalle de bloques:
-  console.log('🟢 [DEBUG] ENTRANDO A BLOQUE DE SECCIÓN ACTIVA EN manejarRespuestaIA');
-  console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA (por sección activa):');
+  // LOG detallado: nombres y tamaños de los bloques enviados a la IA
+  console.log('🟢 [DEBUG][FLOW] Reiniciando prompt tras marcadores. Secciones activas:', seccionesActivas);
+  const bloquesEnviados = [];
+  bloquesEnviados.push({ nombre: 'SECCION_0 (Introducción)', texto: bloques['seccion_0_introduccion_general'] || '' });
+  seccionesActivas.forEach(sec => {
+    if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
+      bloquesEnviados.push({ nombre: `SECCION_ACTIVA (${sec})`, texto: bloques[sec] });
+    }
+  });
   bloquesEnviados.forEach(b => {
-    console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
+    console.log(`   • ${b.nombre} (${(b.texto || '').length} caracteres)`);
   });
 
-  const promptSistema = bloquesEnviados.map(b => b.texto).filter(Boolean).join('\n\n');
-
+  // Mandar a la IA sólo los bloques activos
   res = await EnviarIA(txt, promptSistema, {
     ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
   }, {});
 }
-
 
   const respuestaIA = res.respuesta?.toLowerCase?.() || ''
   console.log('🧠 Token recibido de IA:', respuestaIA)
