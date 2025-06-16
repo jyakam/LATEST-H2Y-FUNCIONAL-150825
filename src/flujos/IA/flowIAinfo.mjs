@@ -425,8 +425,28 @@ const res = await EnviarIA(txt, promptSistema, {
 })
 
 async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
-  // 1. Ejecuta cicloMarcadoresIA, que puede actualizar la sección activa en el state
+  // Procesa marcadores, actualiza el state si corresponde
   res = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state })
+
+  // 🔴🔴 NUEVO: Si la respuesta de IA es SOLO un marcador (por ejemplo [SOLICITAR_SECCION: PASO_2]), 
+  // NO respondas eso al usuario, sino reenvía el mensaje usando el nuevo paso/section activa
+
+  // Elimina espacios y minúsculas para comparar fácil
+  const respuestaLimpia = (res.respuesta || '').replace(/\s/g, '').toLowerCase();
+  const soloMarcador = /^\[solicitar_seccion:[a-z0-9_]+\]$/.test(respuestaLimpia);
+
+  if (soloMarcador) {
+    // Ya procesaste el marcador y actualizaste el state, ahora debes rearmar el prompt y volver a consultar la IA con el mismo mensaje original del usuario (txt)
+
+    // Re-arma el prompt usando el nuevo state
+    const bloques = ARCHIVO.PROMPT_BLOQUES;
+    const promptSistema = armarPromptOptimizado(state, bloques);
+
+    // Vuelve a consultar la IA con el prompt actualizado
+    res = await EnviarIA(txt, promptSistema, {
+      ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
+    }, {});
+  }
 
 // 2. REVISAR SI HAY SECCIONES ACTIVAS ACTUALIZADAS TRAS LOS MARCADORES
 const seccionesActivas = state.get('seccionesActivas') || [];
