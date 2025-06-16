@@ -18,7 +18,7 @@ export function detectarSeccionesSolicitadas(respuesta) {
 }
 
 // Función principal para el ciclo de marcadores
-async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider }) {
+export async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider }) {
   let respuesta = res.respuesta || '';
   const respuestaLower = respuesta.toLowerCase();
   const marcadorRegex = /\[ACTIVANDO MARCADOR: \[SOLICITAR_SECCI[OÓ]N: ([A-Z0-9_]+)\]\]|\[SOLICITAR_SECCI[OÓ]N: ([A-Z0-9_]+)\]/gi;
