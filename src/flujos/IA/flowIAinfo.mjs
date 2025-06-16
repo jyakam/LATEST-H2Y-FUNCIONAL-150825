@@ -41,63 +41,60 @@ function limpiarClaveCategoria(texto) {
 }
 
 function armarPromptOptimizado(state, bloques, opciones = {}) {
-  // 1. SIEMPRE incluir SECCION 0 (intro, presentación, reglas básicas)
+  // 1. Siempre incluir SECCIÓN 0 (intro, presentación, reglas básicas)
   const seccion0 = bloques['seccion_0_introduccion_general'] || '';
-  // 2. SECCION 1 NO se incluye siempre (solo si el flujo lo pide, la IA sabe que existe por SECCION 0)
-  // 3. Incluir SOLO el paso actual del flujo (SECCION 2)
-  const pasos = bloques.PASOS_FLUJO || [];
-  const pasoFlujoActual = getPasoFlujoActual(state);
-  const textoPaso = pasos[pasoFlujoActual] || '';
 
-  // 4. Si hace falta, incluir productos o testimonios (según opciones)
+  // 2. Obtener sección activa (paso o secciones activas)
+  const pasoFlujoActual = getPasoFlujoActual(state);
+  const seccionesActivas = state.get('seccionesActivas') || [];
+  const pasos = bloques.PASOS_FLUJO || [];
+
+  // 3. Construir bloques a enviar
+  let bloquesEnviados = [
+    { nombre: 'SECCIÓN_0 (Introducción)', texto: seccion0 }
+  ];
+
+  // Priorizar secciones activas si existen
+  if (seccionesActivas.length && seccionesActivas[0] !== 'seccion_0_introduccion_general') {
+    seccionesActivas.forEach(sec => {
+      if (bloques[sec]) {
+        bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${sec})`, texto: bloques[sec] });
+      }
+    });
+  } else if (pasos[pasoFlujoActual]) {
+    // Usar el paso actual si no hay secciones activas
+    bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: pasos[pasoFlujoActual] });
+  } else {
+    // Fallback a PASO 1 solo si no hay nada definido
+    bloquesEnviados.push({ nombre: 'PASO_FLUJO_1', texto: pasos[0] || '' });
+  }
+
+  // 4. Incluir productos o testimonios si se solicitan
   let textoProductos = '';
   let categoriaLog = '';
   if (opciones.incluirProductos && opciones.categoriaProductos) {
     const cat = limpiarClaveCategoria(opciones.categoriaProductos);
     categoriaLog = cat;
     textoProductos = bloques.CATEGORIAS_PRODUCTOS?.[cat] || '';
+    if (textoProductos) {
+      bloquesEnviados.push({ nombre: `CATEGORÍA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
+    }
   }
   let textoTestimonios = '';
   if (opciones.incluirTestimonios) {
-    textoTestimonios = bloques['secci_n_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
-  }
-
- // --- NUEVO: soporte varias secciones activas ---
-const seccionesActivas = state.get('seccionesActivas') || [];
-let bloquesEnviados = [
-  { nombre: 'SECCION_0 (Introducción)', texto: seccion0 }
-];
-
-// Si hay secciones activas, añade todas (sin SECCION 0, y sin duplicados)
-if (seccionesActivas.length) {
-  seccionesActivas.forEach(sec => {
-    if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
-      bloquesEnviados.push({ nombre: `SECCION_ACTIVA (${sec})`, texto: bloques[sec] });
+    textoTestimonios = bloques['seccion_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
+    if (textoTestimonios) {
+      bloquesEnviados.push({ nombre: 'SECCIÓN_4 (Testimonios y FAQ)', texto: textoTestimonios });
     }
-  });
-} else {
-  // Si NO hay secciones activas, flujo normal: SECCION 0 + PASO DEL FLUJO + otros opcionales
-  bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: textoPaso });
-
-  if (textoProductos) {
-    bloquesEnviados.push({ nombre: `CATEGORIA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
   }
-  if (textoTestimonios) {
-    bloquesEnviados.push({ nombre: 'SECCION_4 (Testimonios y FAQ)', texto: textoTestimonios });
-  }
-}
 
-  // 6. LOG detallado para saber exactamente qué secciones/pasos van a la IA
+  // 5. LOG detallado para saber qué secciones/pasos van a la IA
   console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
   bloquesEnviados.forEach(b => {
-    // Mostrar solo el nombre y la cantidad de caracteres, sin imprimir el texto completo.
     console.log(`   • ${b.nombre} (${b.texto.length} caracteres)`);
   });
 
-  // Si necesitas depurar el contenido, descomenta la siguiente línea para mostrar SOLO los primeros 100 caracteres de cada bloque
-  // bloquesEnviados.forEach(b => { console.log(`   > ${b.nombre}: "${b.texto.substring(0, 100)}..."`); });
-
-  // 7. Retorna el prompt unificado para la IA
+  // 6. Retorna el prompt unificado para la IA
   return bloquesEnviados.map(b => b.texto).filter(Boolean).join('\n\n');
 }
 
@@ -430,15 +427,15 @@ const res = await EnviarIA(txt, promptSistema, {
 
 async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
   // Procesa marcadores, actualiza el state si corresponde
-  let respuestaActual = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state })
+  let respuestaActual = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
 
-  // 🔴🔴 NUEVO: Manejar marcadores hasta obtener una respuesta real
+  // Manejar marcadores hasta obtener una respuesta real
   let intentos = 0;
   const maxIntentos = 3;
   while (intentos < maxIntentos) {
-    // Elimina espacios y minúsculas para comparar fácil
+    // Normalizar respuesta para detectar marcadores (insensible a mayúsculas/minúsculas)
     const respuestaLimpia = (respuestaActual.respuesta || '').replace(/\s/g, '').toLowerCase();
-    const soloMarcador = /^\[solicitar_seccion:[a-z0-9_]+\]$/.test(respuestaLimpia);
+    const soloMarcador = /^\[solicitar_secci[oó]n:[a-z0-9_]+\]$/.test(respuestaLimpia);
 
     if (!soloMarcador) {
       // Respuesta válida, salir del ciclo
@@ -452,6 +449,22 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
 
     // LOG detallado
     console.log('🟢 [DEBUG][FLOW] Reconsultando tras marcador. Secciones activas:', state.get('seccionesActivas') || []);
+    const bloquesEnviados = [];
+    bloquesEnviados.push({ nombre: 'SECCIÓN_0 (Introducción)', texto: bloques['seccion_0_introduccion_general'] || '' });
+    const seccionesActivas = state.get('seccionesActivas') || [];
+    seccionesActivas.forEach(sec => {
+      if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
+        bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${sec})`, texto: bloques[sec] });
+      }
+    });
+    const pasoFlujoActual = getPasoFlujoActual(state);
+    const pasos = bloques.PASOS_FLUJO || [];
+    if (pasos[pasoFlujoActual]) {
+      bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: pasos[pasoFlujoActual] });
+    }
+    bloquesEnviados.forEach(b => {
+      console.log(`   • ${b.nombre} (${(b.texto || '').length} caracteres)`);
+    });
 
     respuestaActual = await EnviarIA(txt, promptSistema, {
       ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
@@ -463,7 +476,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
   // Usar la respuesta final
   res = respuestaActual;
 
-  // 2. REVISAR SI HAY SECCIONES ACTIVAS ACTUALIZADAS TRAS LOS MARCADORES
+  // Revisar si hay secciones activas actualizadas tras los marcadores
   const seccionesActivas = state.get('seccionesActivas') || [];
   if (
     seccionesActivas.length &&
@@ -475,10 +488,10 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
     // LOG detallado
     console.log('🟢 [DEBUG][FLOW] Prompt final tras marcadores. Secciones activas:', seccionesActivas);
     const bloquesEnviados = [];
-    bloquesEnviados.push({ nombre: 'SECCION_0 (Introducción)', texto: bloques['seccion_0_introduccion_general'] || '' });
+    bloquesEnviados.push({ nombre: 'SECCIÓN_0 (Introducción)', texto: bloques['seccion_0_introduccion_general'] || '' });
     seccionesActivas.forEach(sec => {
       if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
-        bloquesEnviados.push({ nombre: `SECCION_ACTIVA (${sec})`, texto: bloques[sec] });
+        bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${sec})`, texto: bloques[sec] });
       }
     });
     bloquesEnviados.forEach(b => {
@@ -490,28 +503,28 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
     }, {});
   }
 
-  const respuestaIA = res.respuesta?.toLowerCase?.() || ''
-  console.log('🧠 Token recibido de IA:', respuestaIA)
+  const respuestaIA = res.respuesta?.toLowerCase?.() || '';
+  console.log('🧠 Token recibido de IA:', respuestaIA);
 
   if (respuestaIA.includes('🧩 mostrarproductos')) {
-    await state.update({ ultimaConsulta: txt })
-    return gotoFlow(flowProductos)
+    await state.update({ ultimaConsulta: txt });
+    return gotoFlow(flowProductos);
   }
 
   if (respuestaIA.includes('🧩 mostrardetalles')) {
-    return gotoFlow(flowDetallesProducto)
+    return gotoFlow(flowDetallesProducto);
   }
 
   if (respuestaIA.includes('🧩 solicitarayuda')) {
-    return gotoFlow(flowProductos)
+    return gotoFlow(flowProductos);
   }
 
-  await Responder(res, ctx, flowDynamic, state)
+  await Responder(res, ctx, flowDynamic, state);
 
   if (res?.respuesta && res.respuesta.toLowerCase().includes('⏭️ siguiente paso')) {
-    let pasoActual = getPasoFlujoActual(state)
-    await state.update({ pasoFlujoActual: pasoActual + 1 })
-    console.log('➡️ [flowIAinfo] Avanzando al siguiente paso:', pasoActual + 1)
+    let pasoActual = getPasoFlujoActual(state);
+    await state.update({ pasoFlujoActual: pasoActual + 1 });
+    console.log('➡️ [flowIAinfo] Avanzando al siguiente paso:', pasoActual + 1);
   }
 }
 
