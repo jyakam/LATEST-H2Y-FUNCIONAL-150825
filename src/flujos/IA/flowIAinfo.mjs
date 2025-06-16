@@ -116,10 +116,11 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     const phone = ctx.from.split('@')[0];
     const message = ctx.body.trim();
 
-    // --- Asegúrate que siempre arranque en el PASO 1 (índice 0) ---
-    if (typeof state.get('pasoFlujoActual') !== 'number') {
-      await state.update({ pasoFlujoActual: 0 });
-    }
+    // ==== CAMBIO CRÍTICO: Inicializa SIEMPRE el flujo en PASO 1 ====
+    await state.update({ 
+      pasoFlujoActual: 0,     // PASO 1 del flujo
+      seccionesActivas: []    // No hay secciones activas al arrancar
+    });
 
     console.log('📩 [IAINFO] Mensaje recibido de:', phone)
     console.log(`🔍 [IAINFO] Estado inicial de la caché: ${getCacheContactos().length} contactos`)
@@ -289,14 +290,15 @@ const res = await EnviarIA(txt, promptSistema, {
   })
 
   .addAction({ capture: true }, async (ctx, tools) => {
-  const { flowDynamic, endFlow, gotoFlow, provider, state } = tools
-  const phone = ctx.from.split('@')[0]
-  const message = ctx.body.trim()
+    const { flowDynamic, endFlow, gotoFlow, provider, state } = tools;
+    const phone = ctx.from.split('@')[0];
+    const message = ctx.body.trim();
 
-  // --- Asegúrate que siempre arranque en el PASO 1 (índice 0) ---
-  if (typeof state.get('pasoFlujoActual') !== 'number') {
-    await state.update({ pasoFlujoActual: 0 });
-  }
+    // ==== CAMBIO CRÍTICO: Inicializa SIEMPRE el flujo en PASO 1 ====
+    await state.update({ 
+      pasoFlujoActual: 0,     // PASO 1 del flujo
+      seccionesActivas: []    // No hay secciones activas al arrancar
+    });
 
   let contacto = getContactoByTelefono(phone)
   const datos = {}
