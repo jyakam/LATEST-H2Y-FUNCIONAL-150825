@@ -116,11 +116,17 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     const phone = ctx.from.split('@')[0];
     const message = ctx.body.trim();
 
-    // ==== CAMBIO CRÍTICO: Inicializa SIEMPRE el flujo en PASO 1 ====
-    await state.update({ 
-      pasoFlujoActual: 0,     // PASO 1 del flujo
-      seccionesActivas: []    // No hay secciones activas al arrancar
-    });
+    // ==== INICIALIZA SOLO EN EL PRIMER MENSAJE ====
+    // Si no hay pasoFlujoActual o seccionesActivas, inicializa en PASO 1
+    if (!state.get('pasoFlujoActual') && !state.get('seccionesActivas')) {
+      await state.update({ 
+        pasoFlujoActual: 0,     // PASO 1 del flujo
+        seccionesActivas: []    // No hay secciones activas al arrancar
+      });
+      console.log('🟢 [IAINFO] Estado inicializado: PASO 1, seccionesActivas vacías');
+    } else {
+      console.log('🟢 [IAINFO] Estado existente: PASO', state.get('pasoFlujoActual') + 1, ', seccionesActivas:', state.get('seccionesActivas') || []);
+    }
 
     console.log('📩 [IAINFO] Mensaje recibido de:', phone)
     console.log(`🔍 [IAINFO] Estado inicial de la caché: ${getCacheContactos().length} contactos`)
@@ -294,11 +300,9 @@ const res = await EnviarIA(txt, promptSistema, {
     const phone = ctx.from.split('@')[0];
     const message = ctx.body.trim();
 
-    // ==== CAMBIO CRÍTICO: Inicializa SIEMPRE el flujo en PASO 1 ====
-    await state.update({ 
-      pasoFlujoActual: 0,     // PASO 1 del flujo
-      seccionesActivas: []    // No hay secciones activas al arrancar
-    });
+    // ==== NO REINICIAR EL STATE EN MENSAJES POSTERIORES ====
+    // Mantener pasoFlujoActual y seccionesActivas existentes
+    console.log('🟢 [IAINFO] Estado actual: PASO', state.get('pasoFlujoActual') + 1, ', seccionesActivas:', state.get('seccionesActivas') || []);
 
   let contacto = getContactoByTelefono(phone)
   const datos = {}
@@ -426,57 +430,65 @@ const res = await EnviarIA(txt, promptSistema, {
 
 async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
   // Procesa marcadores, actualiza el state si corresponde
-  res = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state })
+  let respuestaActual = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state })
 
-  // 🔴🔴 NUEVO: Si la respuesta de IA es SOLO un marcador (por ejemplo [SOLICITAR_SECCION: PASO_2]), 
-  // NO respondas eso al usuario, sino reenvía el mensaje usando el nuevo paso/section activa
+  // 🔴🔴 NUEVO: Manejar marcadores hasta obtener una respuesta real
+  let intentos = 0;
+  const maxIntentos = 3;
+  while (intentos < maxIntentos) {
+    // Elimina espacios y minúsculas para comparar fácil
+    const respuestaLimpia = (respuestaActual.respuesta || '').replace(/\s/g, '').toLowerCase();
+    const soloMarcador = /^\[solicitar_seccion:[a-z0-9_]+\]$/.test(respuestaLimpia);
 
-  // Elimina espacios y minúsculas para comparar fácil
-  const respuestaLimpia = (res.respuesta || '').replace(/\s/g, '').toLowerCase();
-  const soloMarcador = /^\[solicitar_seccion:[a-z0-9_]+\]$/.test(respuestaLimpia);
+    if (!soloMarcador) {
+      // Respuesta válida, salir del ciclo
+      break;
+    }
 
-  if (soloMarcador) {
-    // Ya procesaste el marcador y actualizaste el state, ahora debes rearmar el prompt y volver a consultar la IA con el mismo mensaje original del usuario (txt)
-
-    // Re-arma el prompt usando el nuevo state
+    // Respuesta es solo un marcador, rearmar prompt y consultar de nuevo
+    console.log('🔄 [IAINFO] Respuesta es solo marcador, reconsultando IA...');
     const bloques = ARCHIVO.PROMPT_BLOQUES;
     const promptSistema = armarPromptOptimizado(state, bloques);
 
-    // Vuelve a consultar la IA con el prompt actualizado
+    // LOG detallado
+    console.log('🟢 [DEBUG][FLOW] Reconsultando tras marcador. Secciones activas:', state.get('seccionesActivas') || []);
+
+    respuestaActual = await EnviarIA(txt, promptSistema, {
+      ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
+    }, {});
+
+    intentos++;
+  }
+
+  // Usar la respuesta final
+  res = respuestaActual;
+
+  // 2. REVISAR SI HAY SECCIONES ACTIVAS ACTUALIZADAS TRAS LOS MARCADORES
+  const seccionesActivas = state.get('seccionesActivas') || [];
+  if (
+    seccionesActivas.length &&
+    !(seccionesActivas.length === 1 && seccionesActivas[0] === 'seccion_0_introduccion_general')
+  ) {
+    const bloques = ARCHIVO.PROMPT_BLOQUES;
+    const promptSistema = armarPromptOptimizado(state, bloques);
+
+    // LOG detallado
+    console.log('🟢 [DEBUG][FLOW] Prompt final tras marcadores. Secciones activas:', seccionesActivas);
+    const bloquesEnviados = [];
+    bloquesEnviados.push({ nombre: 'SECCION_0 (Introducción)', texto: bloques['seccion_0_introduccion_general'] || '' });
+    seccionesActivas.forEach(sec => {
+      if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
+        bloquesEnviados.push({ nombre: `SECCION_ACTIVA (${sec})`, texto: bloques[sec] });
+      }
+    });
+    bloquesEnviados.forEach(b => {
+      console.log(`   • ${b.nombre} (${(b.texto || '').length} caracteres)`);
+    });
+
     res = await EnviarIA(txt, promptSistema, {
       ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
     }, {});
   }
-
-// 2. REVISAR SI HAY SECCIONES ACTIVAS ACTUALIZADAS TRAS LOS MARCADORES
-const seccionesActivas = state.get('seccionesActivas') || [];
-if (
-  seccionesActivas.length &&
-  !(seccionesActivas.length === 1 && seccionesActivas[0] === 'seccion_0_introduccion_general')
-) {
-  const bloques = ARCHIVO.PROMPT_BLOQUES;
-
-  // Usamos armarPromptOptimizado para armar exactamente como lo necesitas
-  const promptSistema = armarPromptOptimizado(state, bloques);
-
-  // LOG detallado: nombres y tamaños de los bloques enviados a la IA
-  console.log('🟢 [DEBUG][FLOW] Reiniciando prompt tras marcadores. Secciones activas:', seccionesActivas);
-  const bloquesEnviados = [];
-  bloquesEnviados.push({ nombre: 'SECCION_0 (Introducción)', texto: bloques['seccion_0_introduccion_general'] || '' });
-  seccionesActivas.forEach(sec => {
-    if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
-      bloquesEnviados.push({ nombre: `SECCION_ACTIVA (${sec})`, texto: bloques[sec] });
-    }
-  });
-  bloquesEnviados.forEach(b => {
-    console.log(`   • ${b.nombre} (${(b.texto || '').length} caracteres)`);
-  });
-
-  // Mandar a la IA sólo los bloques activos
-  res = await EnviarIA(txt, promptSistema, {
-    ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
-  }, {});
-}
 
   const respuestaIA = res.respuesta?.toLowerCase?.() || ''
   console.log('🧠 Token recibido de IA:', respuestaIA)
