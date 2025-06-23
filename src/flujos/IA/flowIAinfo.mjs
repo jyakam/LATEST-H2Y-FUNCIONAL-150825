@@ -130,12 +130,11 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   
     // --- [LOGS para depuración] ---
 console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.PROMPT_BLOQUES));
-console.log('🟡 [DEBUG] Sección 2:', ARCHIVO.PROMPT_BLOQUES['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']);
     
     // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
 const bloques = ARCHIVO.PROMPT_BLOQUES;
     // DEBUG: Muestra cuántos pasos detectó en la sección de flujo
-console.log('🟠 [DEBUG] PASOS_FLUJO:', bloques.PASOS_FLUJO);
+console.log('🟠 [DEBUG] PASOS_FLUJO:', (bloques.PASOS_FLUJO || []).map(paso => paso.substring(0, 100) + '...'));
 
 // --- Detecta intención de productos y testimonios (ajusta según tus helpers) ---
 const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } =
@@ -306,13 +305,12 @@ const res = await EnviarIA(txt, promptSistema, {
 
     // --- [LOGS para depuración] ---
 console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.PROMPT_BLOQUES));
-console.log('🟡 [DEBUG] Sección 2:', ARCHIVO.PROMPT_BLOQUES['secci_n_2_guia_maestra_y_flujo_de_venta_ideal_paso_a_paso']);
 
 // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
 const bloques = ARCHIVO.PROMPT_BLOQUES;
 
 // DEBUG: Muestra cuántos pasos detectó en la sección de flujo
-console.log('🟠 [DEBUG] PASOS_FLUJO:', bloques.PASOS_FLUJO);
+console.log('🟠 [DEBUG] PASOS_FLUJO:', (bloques.PASOS_FLUJO || []).map(paso => paso.substring(0, 100) + '...'));
     
 // --- Detecta intención de productos y testimonios (ajusta según tus helpers) ---
 const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } =
