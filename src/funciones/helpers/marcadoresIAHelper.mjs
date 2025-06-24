@@ -1,17 +1,28 @@
 import { ARCHIVO } from '../../config/bot.mjs'
 import { EnviarIA } from '../../flujos/bloques/enviarIA.mjs'
 
-// Función auxiliar para detectar el marcador
+// Utilidad para normalizar nombres: minúsculas, sin tildes, sin espacios extras, solo letras/números/guiones_bajos
+function normalizarClave(txt = '') {
+  return (txt || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita tildes
+    .replace(/[^a-z0-9_]/g, '_') // cualquier cosa que no sea letra/numero -> _
+    .replace(/_+/g, '_')         // reemplaza multiples _ por uno solo
+    .replace(/^_+|_+$/g, '');    // quita _ al inicio/final
+}
+
+// Función auxiliar para detectar marcadores tipo 🧩seccion_x, ⭐categoria, 🔥paso_y, etc
 export function detectarSeccionesSolicitadas(respuesta) {
-  // Soporta emojis al inicio (🟦⭐🔥🧩) y valores sin delimitador final ni SOLICITAR_SECCIÓN
-  const regex = /(?:[\[\(\{🟦⭐🔥🧩])\s*(?:SOLICITAR[_\s-]?SECCI[OÓ]N[:：]?\s*)?([A-Za-z0-9_ ,-]+)(?:[\]\)\}🟦⭐🔥🧩])?/gi;
+  // Captura cualquier emoji seguido de una palabra-clave, con o sin espacios, y hasta antes de espacio o fin de línea o texto extra
+  const regex = /([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*([A-Za-z0-9_áéíóúñüÁÉÍÓÚÑÜ]+)/gu;
   let match;
   const secciones = [];
   console.log('🔍 [MARCADORES] Analizando respuesta para marcadores:', respuesta);
   while ((match = regex.exec(respuesta)) !== null) {
-    const valor = match[1].trim();
-    console.log('🟢 [MARCADORES] Marcador detectado:', valor);
-    secciones.push(...valor.split(',').map(x => x.trim()));
+    const claveRaw = match[2].trim();
+    const claveNorm = normalizarClave(claveRaw);
+    console.log('🟢 [MARCADORES] Marcador detectado:', claveRaw, '-> Normalizado:', claveNorm);
+    secciones.push(claveNorm);
   }
   if (!secciones.length) {
     console.log('⚠️ [MARCADORES] No se encontraron marcadores en la respuesta');
@@ -25,43 +36,47 @@ export function detectarSeccionesSolicitadas(respuesta) {
 export async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider }) {
   let respuesta = res.respuesta || '';
   console.log('🟢 [MARCADORES] Procesando respuesta IA:', respuesta);
-  const respuestaLower = respuesta.toLowerCase();
-  // Soporta marcadores con corchetes (anidados o simples) y emojis
-  const marcadorRegex = /\[ACTIVANDO MARCADOR: \[SOLICITAR_SECCI[OÓ]N: ([A-Z0-9_]+)\]\]|\[SOLICITAR_SECCI[OÓ]N: ([A-Z0-9_]+)\]|🧩([A-Z0-9_]+)/gi;
+
+  // Regex flexible: cualquier emoji + palabra, ignora mayúsculas, tildes, etc.
+  const marcadorRegex = /([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*([A-Za-z0-9_áéíóúñüÁÉÍÓÚÑÜ]+)/gu;
   let match;
   let marcadorProcesado = false;
 
+  // Procesa todos los marcadores encontrados
   while ((match = marcadorRegex.exec(respuesta)) !== null) {
-    const valor = match[1] || match[2] || match[3]; // Captura el valor (corchetes o emoji)
-    if (!valor) {
+    const claveRaw = match[2].trim();
+    const claveNorm = normalizarClave(claveRaw);
+
+    if (!claveNorm) {
       console.log('⚠️ [MARCADORES] Valor de marcador inválido:', match);
       continue;
     }
     marcadorProcesado = true;
-    console.log(`🟢 [MARCADORES] Procesando marcador: ${valor}`);
+    console.log(`🟢 [MARCADORES] Procesando marcador: ${claveRaw} -> ${claveNorm}`);
 
-    if (valor.match(/^PASO_\d+$/)) {
-      const pasoNum = parseInt(valor.replace('PASO_', '')) - 1;
-      await state.update({ pasoFlujoActual: pasoNum });
-      console.log(`🟢 [MARCADORES] Actualizado pasoFlujoActual a PASO ${pasoNum + 1}`);
-    } else if (valor === 'mostrarproductos' || valor === 'mostrardetalles') {
-      console.log(`🟢 [MARCADORES] Redirigiendo a flujo para: ${valor}`);
-      await gotoFlow(valor === 'mostrarproductos' ? flowProductos : flowDetallesProducto);
+    // Si es un PASO_N (ej: PASO_2) también normaliza
+    if (claveNorm.startsWith('paso_') && /^\d+$/.test(claveNorm.replace('paso_', ''))) {
+      const pasoNum = parseInt(claveNorm.replace('paso_', '')) - 1;
+      await state.update({ pasoFlujoActual: pasoNum, seccionesActivas: [] });
+      console.log(`🟢 [MARCADORES] Actualizado pasoFlujoActual a PASO ${pasoNum + 1} y limpiadas seccionesActivas`);
     } else {
+      // Agrega la sección activa si no existe
       const nuevasSecciones = state.get('seccionesActivas') || [];
-      if (!nuevasSecciones.includes(valor)) {
-        nuevasSecciones.push(valor);
+      if (!nuevasSecciones.includes(claveNorm)) {
+        nuevasSecciones.push(claveNorm);
         await state.update({ seccionesActivas: nuevasSecciones });
-        console.log(`🟢 [MARCADORES] Añadida sección activa: ${valor}`);
+        console.log(`🟢 [MARCADORES] Añadida sección activa: ${claveNorm}`);
       } else {
-        console.log(`🟡 [MARCADORES] Sección ya activa, no se añade: ${valor}`);
+        console.log(`🟡 [MARCADORES] Sección ya activa, no se añade: ${claveNorm}`);
       }
     }
   }
 
+  // Limpia la respuesta de TODOS los marcadores (emoji + clave + opcional texto extra)
   if (marcadorProcesado) {
-    console.log('🟢 [MARCADORES] Respuesta limpia tras procesar marcadores:', respuesta.replace(marcadorRegex, '').trim());
-    return { respuesta: respuesta.replace(marcadorRegex, '').trim(), tipo: res.tipo || 0 };
+    const respuestaLimpia = respuesta.replace(/([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*[A-Za-z0-9_áéíóúñüÁÉÍÓÚÑÜ]+( [^.,;\n]*)?/gu, '').trim();
+    console.log('🟢 [MARCADORES] Respuesta limpia tras procesar marcadores:', respuestaLimpia);
+    return { respuesta: respuestaLimpia, tipo: res.tipo || 0 };
   }
 
   console.log('🟢 [MARCADORES] No se procesaron marcadores, devolviendo respuesta original');
