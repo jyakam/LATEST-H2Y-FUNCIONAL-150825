@@ -60,7 +60,7 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
   ];
 
   // Priorizar secciones activas si existen
-  if (seccionesActivas.length && seccionesActivas[0] !== 'seccion_0_introduccion_general') {
+if (seccionesActivas.length && normalizarClave(seccionesActivas[0]) !== normalizarClave('seccion_0_introduccion_general')) {
   seccionesActivas.forEach(sec => {
     const secNorm = normalizarClave(sec);
     if (bloques[secNorm]) {
@@ -69,15 +69,13 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
       console.log('⚠️ [FLOW] Sección activa no encontrada en bloques:', sec, '-> Normalizado:', secNorm);
     }
   });
+} else if (pasos[pasoFlujoActual]) {
+  // Usar el paso actual si no hay secciones activas
+  bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: pasos[pasoFlujoActual] });
+} else {
+  // Fallback a PASO 1 solo si no hay nada definido
+  bloquesEnviados.push({ nombre: 'PASO_FLUJO_1', texto: pasos[0] || '' });
 }
-
-  } else if (pasos[pasoFlujoActual]) {
-    // Usar el paso actual si no hay secciones activas
-    bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: pasos[pasoFlujoActual] });
-  } else {
-    // Fallback a PASO 1 solo si no hay nada definido
-    bloquesEnviados.push({ nombre: 'PASO_FLUJO_1', texto: pasos[0] || '' });
-  }
 
   // 4. Incluir productos o testimonios si se solicitan
   let textoProductos = '';
