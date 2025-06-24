@@ -35,9 +35,14 @@ function getPasoFlujoActual(state) {
   return state.get('pasoFlujoActual') ?? 0;
 }
 
-function limpiarClaveCategoria(texto) {
-  // Convierte el nombre de la categoría a snake_case sin tildes ni ñ
-  return (texto || '').toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+// Normaliza claves para buscar secciones/pasos/categorías
+function normalizarClave(txt = '') {
+  return (txt || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita tildes
+    .replace(/[^a-z0-9_]/g, '_') // cualquier cosa que no sea letra/numero -> _
+    .replace(/_+/g, '_')         // reemplaza multiples _ por uno solo
+    .replace(/^_+|_+$/g, '');    // quita _ al inicio/final
 }
 
 function armarPromptOptimizado(state, bloques, opciones = {}) {
@@ -56,11 +61,16 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
 
   // Priorizar secciones activas si existen
   if (seccionesActivas.length && seccionesActivas[0] !== 'seccion_0_introduccion_general') {
-    seccionesActivas.forEach(sec => {
-      if (bloques[sec]) {
-        bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${sec})`, texto: bloques[sec] });
-      }
-    });
+  seccionesActivas.forEach(sec => {
+    const secNorm = normalizarClave(sec);
+    if (bloques[secNorm]) {
+      bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${secNorm})`, texto: bloques[secNorm] });
+    } else {
+      console.log('⚠️ [FLOW] Sección activa no encontrada en bloques:', sec, '-> Normalizado:', secNorm);
+    }
+  });
+}
+
   } else if (pasos[pasoFlujoActual]) {
     // Usar el paso actual si no hay secciones activas
     bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: pasos[pasoFlujoActual] });
@@ -71,15 +81,15 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
 
   // 4. Incluir productos o testimonios si se solicitan
   let textoProductos = '';
-  let categoriaLog = '';
-  if (opciones.incluirProductos && opciones.categoriaProductos) {
-    const cat = limpiarClaveCategoria(opciones.categoriaProductos);
-    categoriaLog = cat;
-    textoProductos = bloques.CATEGORIAS_PRODUCTOS?.[cat] || '';
-    if (textoProductos) {
-      bloquesEnviados.push({ nombre: `CATEGORÍA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
-    }
+let categoriaLog = '';
+if (opciones.incluirProductos && opciones.categoriaProductos) {
+  const cat = normalizarClave(opciones.categoriaProductos);
+  categoriaLog = cat;
+  textoProductos = bloques.CATEGORIAS_PRODUCTOS?.[cat] || '';
+  if (textoProductos) {
+    bloquesEnviados.push({ nombre: `CATEGORÍA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
   }
+}
   let textoTestimonios = '';
   if (opciones.incluirTestimonios) {
     textoTestimonios = bloques['seccion_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
@@ -427,11 +437,11 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
   let respuestaActual = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
   let intentos = 0;
   const maxIntentos = 3;
-  while (intentos < maxIntentos) {
-    const respuestaLimpia = (respuestaActual.respuesta || '').replace(/\s/g, '').toLowerCase();
-    const soloMarcador = /^\[activando_marcador:\[solicitar_secci[oó]n:[a-z0-9_]+\]\]$/.test(respuestaLimpia) ||
-                         /^\[solicitar_secci[oó]n:[a-z0-9_]+\]$/.test(respuestaLimpia);
-    if (!soloMarcador) break;
+ while (intentos < maxIntentos) {
+  const respuestaLimpia = (respuestaActual.respuesta || '').replace(/\s/g, '').toLowerCase();
+  // Detecta si la respuesta es solo un marcador tipo 🧩SECCION_3_BLOQUE_DE_PRODUCTOS o similar
+  const soloMarcador = /^([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])[a-z0-9_]+$/u.test(respuestaLimpia);
+  if (!soloMarcador) break;
     console.log('🔄 [IAINFO] Respuesta es solo marcador, reconsultando IA...');
     const bloques = ARCHIVO.PROMPT_BLOQUES;
     const promptSistema = armarPromptOptimizado(state, bloques);
@@ -506,9 +516,8 @@ async function Responder(res, ctx, flowDynamic, state) {
     const yaRespondido = state.get('ultimaRespuestaSimple') || '';
     let nuevaRespuesta = res.respuesta.trim();
 
-    // 🔴🔴🔴 LIMPIEZA DE MARCADORES INTERNOS 🔴🔴🔴
-    // Esto borra cualquier marcador tipo [SOLICITAR_SECCION: ...] (incluso si la IA deja otros similares)
-    nuevaRespuesta = nuevaRespuesta.replace(/\[ACTIVANDO MARCADOR: \[SOLICITAR_SECCI[OÓ]N: [A-Z0-9_]+\]\]|\[SOLICITAR_SECCI[OÓ]N: [A-Z0-9_]+\]/gi, '').trim();
+    // 🔴🔴🔴 LIMPIEZA DE MARCADORES INTERNOS (emoji + clave + texto extra) 🔴🔴🔴
+nuevaRespuesta = nuevaRespuesta.replace(/([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*[A-Za-z0-9_áéíóúñüÁÉÍÓÚÑÜ]+( [^.,;\n]*)?/gu, '').trim();
 
     // Opcional: Log para ver si hubo marcadores eliminados
     if (nuevaRespuesta !== res.respuesta.trim()) {
