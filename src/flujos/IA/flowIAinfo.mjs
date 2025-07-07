@@ -293,7 +293,7 @@ const res = await EnviarIA(txt, promptSistema, {
 
       console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta)
 
-      await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
+      await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt)
 
       await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
     })
@@ -424,14 +424,14 @@ const res = await EnviarIA(txt, promptSistema, {
   ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
 }, estado)
 
-    await manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt)
+    await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt)
     await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
   })
 
   return tools.fallBack()
 })
 
-async function manejarRespuestaIA(res, ctx, flowDynamic, gotoFlow, state, txt) {
+async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
   let respuestaActual = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
   let intentos = 0;
   const maxIntentos = 3;
