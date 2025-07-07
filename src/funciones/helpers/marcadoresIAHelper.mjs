@@ -50,7 +50,7 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, end
 
   // Procesa todos los marcadores encontrados
   while ((match = marcadorRegex.exec(respuesta)) !== null) {
-    const claveRaw = match[2].trim();
+    const claveRaw = match[1].trim();
     const claveNorm = normalizarClave(claveRaw);
 
     if (!claveNorm) {
