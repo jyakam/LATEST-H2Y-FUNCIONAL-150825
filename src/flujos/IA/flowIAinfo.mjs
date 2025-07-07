@@ -431,79 +431,83 @@ const res = await EnviarIA(txt, promptSistema, {
   return tools.fallBack()
 })
 
+// ✅ NUEVA VERSIÓN DE LA FUNCIÓN - REEMPLAZAR LA ANTIGUA
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-  let respuestaActual = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
+  let respuestaActual = res;
   let intentos = 0;
-  const maxIntentos = 3;
- while (intentos < maxIntentos) {
-  const respuestaLimpia = (respuestaActual.respuesta || '').replace(/\s/g, '').toLowerCase();
-  // Detecta si la respuesta es solo un marcador tipo 🧩SECCION_3_BLOQUE_DE_PRODUCTOS o similar
-  const soloMarcador = /^([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])[a-z0-9_]+$/u.test(respuestaLimpia);
-  if (!soloMarcador) break;
-    console.log('🔄 [IAINFO] Respuesta es solo marcador, reconsultando IA...');
-    const bloques = ARCHIVO.PROMPT_BLOQUES;
-    const promptSistema = armarPromptOptimizado(state, bloques);
-    console.log('🟢 [DEBUG][FLOW] Reconsultando tras marcador. Estado actual: PASO', state.get('pasoFlujoActual') + 1, ', seccionesActivas:', state.get('seccionesActivas') || []);
-    const bloquesEnviados = [];
-    bloquesEnviados.push({ nombre: 'SECCIÓN_0 (Introducción)', texto: bloques['seccion_0_introduccion_general'] || '' });
-    const seccionesActivas = state.get('seccionesActivas') || [];
-    seccionesActivas.forEach(sec => {
-      if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
-        bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${sec})`, texto: bloques[sec] });
-      }
-    });
-    const pasoFlujoActual = getPasoFlujoActual(state);
-    const pasos = bloques.PASOS_FLUJO || [];
-    if (pasos[pasoFlujoActual]) {
-      bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: pasos[pasoFlujoActual] });
+  const maxIntentos = 3; // Límite para evitar bucles infinitos
+
+  console.log('🔄 [MANEJAR_IA] Iniciando ciclo de procesamiento de respuesta...');
+
+  while (intentos < maxIntentos) {
+    // 1. Procesamos marcadores. Esto actualiza el STATE y nos devuelve la respuesta LIMPIA.
+    respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
+    const textoRespuestaLimpia = (respuestaActual.respuesta || '').trim();
+
+    // 2. Verificamos si la respuesta, después de quitar marcadores, está vacía.
+    // Si está vacía, significa que la IA SOLO envió un marcador y necesitamos volver a consultar.
+    if (!textoRespuestaLimpia) {
+      console.log(`👻 [TRANSICIÓN AUTOMÁTICA] La respuesta de la IA estaba vacía tras limpiar marcadores. Re-consultando... (Intento ${intentos + 1})`);
+      intentos++;
+
+      // Rearmamos el prompt CON EL NUEVO CONTEXTO (que `cicloMarcadoresIA` ya actualizó en el state)
+      const bloques = ARCHIVO.PROMPT_BLOQUES;
+      const promptSistema = armarPromptOptimizado(state, bloques); // Esta función ya loguea qué bloques se envían
+      
+      const contactoCache = getContactoByTelefono(ctx.from);
+      const estado = {
+        esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
+        contacto: contactoCache || {}
+      };
+      
+      // Volvemos a llamar a la IA con el prompt actualizado
+      respuestaActual = await EnviarIA(txt, promptSistema, {
+        ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
+      }, estado);
+
+      // Continuamos el bucle para volver a procesar la nueva respuesta
+      continue; 
     }
-    console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
-    bloquesEnviados.forEach(b => {
-      console.log(`   • ${b.nombre} (${(b.texto || '').length} caracteres)`);
-    });
-    respuestaActual = await EnviarIA(txt, promptSistema, {
-      ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
-    }, {});
-    intentos++;
+
+    // 3. Si llegamos aquí, es porque tenemos una respuesta de texto real para el usuario.
+    // Salimos del bucle.
+    console.log('✅ [MANEJAR_IA] Respuesta final obtenida:', textoRespuestaLimpia);
+    break;
   }
-  res = respuestaActual;
-  const seccionesActivas = state.get('seccionesActivas') || [];
-  if (seccionesActivas.length && !(seccionesActivas.length === 1 && seccionesActivas[0] === 'seccion_0_introduccion_general')) {
-    const bloques = ARCHIVO.PROMPT_BLOQUES;
-    const promptSistema = armarPromptOptimizado(state, bloques);
-    console.log('🟢 [DEBUG][FLOW] Prompt final tras marcadores. Estado actual: PASO', state.get('pasoFlujoActual') + 1, ', seccionesActivas:', seccionesActivas);
-    console.log('🚦 [PROMPT DEBUG] SE ENVÍA A LA IA:');
-    const bloquesEnviados = [];
-    bloquesEnviados.push({ nombre: 'SECCIÓN_0 (Introducción)', texto: bloques['seccion_0_introduccion_general'] || '' });
-    seccionesActivas.forEach(sec => {
-      if (sec !== 'seccion_0_introduccion_general' && bloques[sec]) {
-        bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${sec})`, texto: bloques[sec] });
-      }
-    });
-    bloquesEnviados.forEach(b => {
-      console.log(`   • ${b.nombre} (${(b.texto || '').length} caracteres)`);
-    });
-    res = await EnviarIA(txt, promptSistema, {
-      ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
-    }, {});
+
+  if (intentos >= maxIntentos) {
+    console.error('❌ [ERROR] Se alcanzó el número máximo de re-consultas a la IA. El bot podría estar en un bucle. Finalizando flujo.');
+    await flowDynamic('Lo siento, parece que he tenido un problema procesando tu solicitud. Por favor, intenta de nuevo en un momento.');
+    return;
   }
-  const respuestaIA = res.respuesta?.toLowerCase?.() || '';
-  console.log('🧠 Token recibido de IA:', respuestaIA);
-  if (respuestaIA.includes('🧩 mostrarproductos')) {
+
+  // 4. Con la respuesta final, procesamos las acciones (mostrar productos, etc.)
+  const respuestaIA = respuestaActual.respuesta?.toLowerCase?.() || '';
+  console.log('🧠 [MANEJAR_IA] Analizando tokens de acción en respuesta final...');
+
+  if (respuestaIA.includes('🧩mostrarproductos')) {
+    console.log('➡️ [ACCIÓN] Detectado token para mostrar productos.');
     await state.update({ ultimaConsulta: txt });
     return gotoFlow(flowProductos);
   }
-  if (respuestaIA.includes('🧩 mostrardetalles')) {
+  if (respuestaIA.includes('🧩mostrardetalles')) {
+    console.log('➡️ [ACCIÓN] Detectado token para mostrar detalles.');
     return gotoFlow(flowDetallesProducto);
   }
-  if (respuestaIA.includes('🧩 solicitarayuda')) {
-    return gotoFlow(flowProductos);
+  if (respuestaIA.includes('🧩solicitarayuda')) {
+    console.log('➡️ [ACCIÓN] Detectado token para solicitar ayuda.');
+    // Aquí deberías tener un flowAyuda o similar, por ahora lo dejo como flowProductos
+    return gotoFlow(flowProductos); 
   }
-  await Responder(res, ctx, flowDynamic, state);
-  if (res?.respuesta && res.respuesta.toLowerCase().includes('⏭️ siguiente paso')) {
-    let pasoActual = getPasoFlujoActual(state);
-    await state.update({ pasoFlujoActual: pasoActual + 1 });
-    console.log('➡️ [flowIAinfo] Avanzando al siguiente paso:', pasoActual + 1);
+  
+  // 5. Enviamos la respuesta final al usuario
+  await Responder(respuestaActual, ctx, flowDynamic, state);
+
+  // 6. Verificamos si la IA pide avanzar de paso en el flujo principal
+  if (respuestaActual.respuesta?.includes('⏭️siguiente paso')) {
+    let pasoActual = state.get('pasoFlujoActual') ?? 0;
+    await state.update({ pasoFlujoActual: pasoActual + 1, seccionesActivas: [] }); // Limpiamos secciones al avanzar de paso
+    console.log('➡️ [FLUJO] Avanzando al siguiente paso del flujo:', pasoActual + 2);
   }
 }
 
