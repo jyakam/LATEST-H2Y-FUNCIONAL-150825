@@ -11,24 +11,30 @@ function normalizarClave(txt = '') {
     .replace(/^_+|_+$/g, '');    // quita _ al inicio/final
 }
 
-// Función auxiliar para detectar marcadores tipo 🧩seccion_x, ⭐categoria, 🔥paso_y, etc
+// ✅ NUEVA VERSIÓN - REEMPLAZAR LA FUNCIÓN ANTIGUA
 export function detectarSeccionesSolicitadas(respuesta) {
-  // Captura cualquier emoji seguido de una palabra-clave, con o sin espacios, y hasta antes de espacio o fin de línea o texto extra
-  const regex = /([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*([A-Za-z0-9_áéíóúñüÁÉÍÓÚÑÜ]+)/gu;
+  // Regex corregida: busca un emoji, pero SOLO captura la palabra clave alfanumérica (con guiones bajos) que le sigue.
+  // Ejemplo: "Hola 🧩seccion_3 texto" -> captura "seccion_3"
+  // No capturará palabras sueltas.
+  const regex = /(?:[\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*([a-zA-Z0-9_]+)/gu;
   let match;
   const secciones = [];
   console.log('🔍 [MARCADORES] Analizando respuesta para marcadores:', respuesta);
+
   while ((match = regex.exec(respuesta)) !== null) {
-    const claveRaw = match[2].trim();
+    // La clave capturada está en match[1]
+    const claveRaw = match[1].trim();
     const claveNorm = normalizarClave(claveRaw);
-    console.log('🟢 [MARCADORES] Marcador detectado:', claveRaw, '-> Normalizado:', claveNorm);
+    console.log('🟢 [MARCADORES] Marcador VÁLIDO detectado:', claveRaw, '-> Normalizado:', claveNorm);
     secciones.push(claveNorm);
   }
+
   if (!secciones.length) {
-    console.log('⚠️ [MARCADORES] No se encontraron marcadores en la respuesta');
+    console.log('🟡 [MARCADORES] No se encontraron marcadores válidos en la respuesta.');
     return null;
   }
-  console.log('🟢 [MARCADORES] Secciones solicitadas:', secciones);
+
+  console.log('✅ [MARCADORES] Secciones solicitadas VÁLIDAS:', secciones);
   return secciones;
 }
 
