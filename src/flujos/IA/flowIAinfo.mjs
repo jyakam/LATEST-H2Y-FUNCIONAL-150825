@@ -60,34 +60,34 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
   ];
 
   // Priorizar secciones activas si existen
-if (seccionesActivas.length && normalizarClave(seccionesActivas[0]) !== normalizarClave('seccion_0_introduccion_general')) {
-  seccionesActivas.forEach(sec => {
-    const secNorm = normalizarClave(sec);
-    if (bloques[secNorm]) {
-      bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${secNorm})`, texto: bloques[secNorm] });
-    } else {
-      console.log('⚠️ [FLOW] Sección activa no encontrada en bloques:', sec, '-> Normalizado:', secNorm);
-    }
-  });
-} else if (pasos[pasoFlujoActual]) {
-  // Usar el paso actual si no hay secciones activas
-  bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: pasos[pasoFlujoActual] });
-} else {
-  // Fallback a PASO 1 solo si no hay nada definido
-  bloquesEnviados.push({ nombre: 'PASO_FLUJO_1', texto: pasos[0] || '' });
-}
+  if (seccionesActivas.length && normalizarClave(seccionesActivas[0]) !== normalizarClave('seccion_0_introduccion_general')) {
+    seccionesActivas.forEach(sec => {
+      const secNorm = normalizarClave(sec);
+      if (bloques[secNorm]) {
+        bloquesEnviados.push({ nombre: `SECCIÓN_ACTIVA (${secNorm})`, texto: bloques[secNorm] });
+      } else {
+        console.log('⚠️ [FLOW] Sección activa no encontrada en bloques:', sec, '-> Normalizado:', secNorm);
+      }
+    });
+  } else if (pasos[pasoFlujoActual]) {
+    // Usar el paso actual si no hay secciones activas
+    bloquesEnviados.push({ nombre: `PASO_FLUJO_${pasoFlujoActual + 1}`, texto: pasos[pasoFlujoActual] });
+  } else {
+    // Fallback a PASO 1 solo si no hay nada definido
+    bloquesEnviados.push({ nombre: 'PASO_FLUJO_1', texto: pasos[0] || '' });
+  }
 
   // 4. Incluir productos o testimonios si se solicitan
   let textoProductos = '';
-let categoriaLog = '';
-if (opciones.incluirProductos && opciones.categoriaProductos) {
-  const cat = normalizarClave(opciones.categoriaProductos);
-  categoriaLog = cat;
-  textoProductos = bloques.CATEGORIAS_PRODUCTOS?.[cat] || '';
-  if (textoProductos) {
-    bloquesEnviados.push({ nombre: `CATEGORÍA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
+  let categoriaLog = '';
+  if (opciones.incluirProductos && opciones.categoriaProductos) {
+    const cat = normalizarClave(opciones.categoriaProductos);
+    categoriaLog = cat;
+    textoProductos = bloques.CATEGORIAS_PRODUCTOS?.[cat] || '';
+    if (textoProductos) {
+      bloquesEnviados.push({ nombre: `CATEGORÍA_PRODUCTOS (${categoriaLog})`, texto: textoProductos });
+    }
   }
-}
   let textoTestimonios = '';
   if (opciones.incluirTestimonios) {
     textoTestimonios = bloques['seccion_4_testimonio_de_clientes_y_preguntas_frecuentes'] || '';
