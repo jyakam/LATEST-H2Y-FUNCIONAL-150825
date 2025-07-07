@@ -44,7 +44,7 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, end
   console.log('🟢 [MARCADORES] Procesando respuesta IA:', respuesta);
 
   // Regex flexible: cualquier emoji + palabra, ignora mayúsculas, tildes, etc.
-  const marcadorRegex = /([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*([A-Za-z0-9_áéíóúñüÁÉÍÓÚÑÜ]+)/gu;
+  const marcadorRegex = /(?:[\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*([a-zA-Z0-9_]+)/gu;
   let match;
   let marcadorProcesado = false;
 
