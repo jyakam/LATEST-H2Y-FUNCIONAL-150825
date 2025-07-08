@@ -10,8 +10,10 @@ function normalizarClave(txt = '') {
     .replace(/^_+|_+$/g, '');
 }
 
+// OPCIÓN 1: SOLO SE ACEPTA MARCADOR CON EMOJI INICIO Y FIN (🧩CLAVE🧩)
 export function detectarSeccionesSolicitadas(respuesta) {
-  const regex = /(?:[\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*([a-zA-Z0-9_]+)/gu;
+  // Solo acepta marcadores con emoji al inicio y al final, clave al medio
+  const regex = /🧩([A-Za-z0-9_]+)🧩/g;
   let match;
   const secciones = [];
   console.log('🔍 [MARCADORES] Analizando respuesta para marcadores:', respuesta);
@@ -36,9 +38,14 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, end
   let respuesta = res.respuesta || '';
   console.log('🟢 [MARCADORES] Procesando respuesta IA:', respuesta);
 
-  const marcadorRegex = /(?:[\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*([a-zA-Z0-9_]+)/gu;
+  // Nuevo regex SOLO para 🧩CLAVE🧩 (delimitado)
+  const marcadorRegex = /🧩([A-Za-z0-9_]+)🧩/g;
   let match;
   let marcadorProcesado = false;
+
+  // Obtener bloques disponibles para validar secciones (opcional: puedes pasar ARCHIVO.PROMPT_BLOQUES)
+  const bloquesDisponibles = new Set(Object.keys(ARCHIVO.PROMPT_BLOQUES || {}).map(normalizarClave));
+  // También puedes pasar bloques extra según contexto
 
   while ((match = marcadorRegex.exec(respuesta)) !== null) {
     const claveRaw = match[1].trim();
@@ -48,6 +55,13 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, end
       console.log('⚠️ [MARCADORES] Valor de marcador inválido:', match);
       continue;
     }
+
+    // Solo procesar si existe la clave en los bloques
+    if (!bloquesDisponibles.has(claveNorm) && !claveNorm.startsWith('paso_')) {
+      console.log(`⚠️ [MARCADORES] Marcador detectado "${claveNorm}" pero NO existe como bloque. No se activa.`);
+      continue;
+    }
+
     marcadorProcesado = true;
     console.log(`🟢 [MARCADORES] Procesando marcador: ${claveRaw} -> ${claveNorm}`);
 
@@ -68,7 +82,8 @@ export async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, end
   }
 
   if (marcadorProcesado) {
-    const respuestaLimpia = respuesta.replace(/([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*[A-Za-z0-9_áéíóúñüÁÉÍÓÚÑÜ]+( [^.,;\n]*)?/gu, '').trim();
+    // Limpia SOLO los marcadores con emoji al inicio y fin
+    const respuestaLimpia = respuesta.replace(/🧩[A-Za-z0-9_]+🧩/g, '').trim();
     console.log('🟢 [MARCADORES] Respuesta limpia tras procesar marcadores:', respuestaLimpia);
     return { respuesta: respuestaLimpia, tipo: res.tipo || 0 };
   }
