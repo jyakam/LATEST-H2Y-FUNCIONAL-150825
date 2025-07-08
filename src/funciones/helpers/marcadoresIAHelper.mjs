@@ -32,7 +32,7 @@ export function detectarSeccionesSolicitadas(respuesta) {
   return secciones;
 }
 
-export function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider }) {
+export async function cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider }) {
   let respuesta = res.respuesta || '';
   console.log('🟢 [MARCADORES] Procesando respuesta IA:', respuesta);
 
