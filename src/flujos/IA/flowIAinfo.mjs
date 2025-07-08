@@ -519,7 +519,7 @@ async function Responder(res, ctx, flowDynamic, state) {
     let nuevaRespuesta = res.respuesta.trim();
 
     // 🔴🔴🔴 LIMPIEZA DE MARCADORES INTERNOS (emoji + clave + texto extra) 🔴🔴🔴
-nuevaRespuesta = nuevaRespuesta.replace(/([\p{Emoji}\u2600-\u27BF\uE000-\uF8FF\uD83C-\uDBFF\uDC00-\uDFFF])\s*[A-Za-z0-9_áéíóúñüÁÉÍÓÚÑÜ]+( [^.,;\n]*)?/gu, '').trim();
+nuevaRespuesta = nuevaRespuesta.replace(/🧩[A-Za-z0-9_]+🧩|\[.*?: [^\]]+\]/gi, '').trim();
 
     // Opcional: Log para ver si hubo marcadores eliminados
     if (nuevaRespuesta !== res.respuesta.trim()) {
