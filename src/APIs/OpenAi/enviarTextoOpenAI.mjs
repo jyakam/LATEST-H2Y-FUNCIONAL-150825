@@ -39,10 +39,20 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
       }
     }
 
+    // 🟣 LIMITAR HISTORIAL SOLO A SYSTEM + ÚLTIMOS 8 TURNOS (user/assistant) 🟣
+    let historialFinal = []
+    if (_historial.length > 1) {
+      // Toma sólo los últimos 8 mensajes (pueden ser 4 pares user/assistant)
+      const ultimosTurnos = _historial.slice(-8)
+      historialFinal = [_historial[0], ...ultimosTurnos]
+    } else {
+      historialFinal = [..._historial]
+    }
+
     const openai = OpenIA()
     const request = {
       model: BOT.MODELO_IA,
-      messages: _historial,
+      messages: historialFinal,
       max_tokens: BOT.TOKENS,
       temperature: BOT.TEMPERATURA
     }
@@ -54,28 +64,28 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
       request.function_call = 'auto'
     }
 
-  // LOG 1: Ver resumen del historial SIN imprimir el contenido completo
-console.log('================= [DEBUG PROMPT OPENAI] =================');
-console.log('[DEBUG] Largo del historial:', _historial.length);
-_historial.forEach((m, idx) => {
-  // Solo muestra el rol, la longitud y un adelanto de 100 caracteres.
-  const preview = m.content ? m.content.substring(0, 100).replace(/\n/g, ' ') : '';
-  const dots = m.content && m.content.length > 100 ? '... [truncado]' : '';
-  console.log(`[${idx}] (${m.role}) [${m.content?.length || 0} chars]: "${preview}${dots}"`);
-});
-console.log('Longitud total del prompt (caracteres):', _historial.reduce((acc, m) => acc + (m.content?.length || 0), 0));
-console.log('==========================================================');
+    // LOG 1: Ver resumen del historial SIN imprimir el contenido completo
+    console.log('================= [DEBUG PROMPT OPENAI] =================');
+    console.log('[DEBUG] Largo del historial:', historialFinal.length);
+    historialFinal.forEach((m, idx) => {
+      // Solo muestra el rol, la longitud y un adelanto de 100 caracteres.
+      const preview = m.content ? m.content.substring(0, 100).replace(/\n/g, ' ') : '';
+      const dots = m.content && m.content.length > 100 ? '... [truncado]' : '';
+      console.log(`[${idx}] (${m.role}) [${m.content?.length || 0} chars]: "${preview}${dots}"`);
+    });
+    console.log('Longitud total del prompt (caracteres):', historialFinal.reduce((acc, m) => acc + (m.content?.length || 0), 0));
+    console.log('==========================================================');
 
-// LOG 2: Mostrar SOLO un resumen de roles, longitudes y primeros 100 caracteres
-console.log('======= [PROMPT RESUMEN ENVIADO A LA IA] =======');
-_historial.forEach((m, idx) => {
-  const preview = m.content ? m.content.substring(0, 100).replace(/\n/g, ' ') : '';
-  const dots = m.content && m.content.length > 100 ? '... [truncado]' : '';
-  console.log(`[${idx}] (${m.role}) [${m.content?.length || 0} chars]: "${preview}${dots}"`);
-});
-console.log('Longitud total del prompt (caracteres):', _historial.reduce((acc, m) => acc + (m.content?.length || 0), 0));
-console.log('=============================================');
-    
+    // LOG 2: Mostrar SOLO un resumen de roles, longitudes y primeros 100 caracteres
+    console.log('======= [PROMPT RESUMEN ENVIADO A LA IA] =======');
+    historialFinal.forEach((m, idx) => {
+      const preview = m.content ? m.content.substring(0, 100).replace(/\n/g, ' ') : '';
+      const dots = m.content && m.content.length > 100 ? '... [truncado]' : '';
+      console.log(`[${idx}] (${m.role}) [${m.content?.length || 0} chars]: "${preview}${dots}"`);
+    });
+    console.log('Longitud total del prompt (caracteres):', historialFinal.reduce((acc, m) => acc + (m.content?.length || 0), 0));
+    console.log('=============================================');
+
     const completion = await openai.chat.completions.create(request)
 
     const message = completion.choices?.[0]?.message
@@ -92,4 +102,3 @@ console.log('=============================================');
     return { respuesta: MENSAJES.ERROR || '❌ No pude procesar tu solicitud, por favor intentá más tarde.', tipo: ENUM_IA_RESPUESTAS.TEXTO }
   }
 }
-
