@@ -37,7 +37,11 @@ export async function EnviarIA(msj, guion, funciones, estado = {}) {
       })
     }
 
-    funciones.state.clear()
+       // En vez de limpiar TODO el state, solo borra archivos temporales:
+    await funciones.state.update({
+      archivos: [],
+      tipoMensaje: undefined
+    });
     const res = await EnviarImagenOpenAI(objeto, funciones.ctx.from, guion, estado)
     console.log('📥 RESPUESTA IA IMAGEN:', res)
     return res
@@ -57,11 +61,14 @@ if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
     mensaje.push(txt)
   }
 
-  funciones.state.clear()
+   // En vez de limpiar TODO el state, solo borra archivos temporales:
+  await funciones.state.update({
+    archivos: [],
+    tipoMensaje: undefined
+  });
   const final = `${promptExtra}\n${mensaje.join('\n')}`
 
   console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (AUDIO):\n', final)
-  // 👇👇 ESTE ES EL NUEVO LOG QUE TE RECOMIENDO AGREGAR 👇👇
   console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]')
 
   const res = await EnviarTextoOpenAI(final, funciones.ctx.from, guion, estado)
