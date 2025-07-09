@@ -16,15 +16,6 @@ function OpenIA() {
 }
 
 //TT LLAMAR IA
-/**
- * Envía un mensaje de texto a la API de OpenAI y obtiene una respuesta.
- * @param {string} msj - El mensaje a enviar a la IA.
- * @param {string} userId - El ID del usuario que envía el mensaje.
- * @param {string} guion - Enum del guion a usar o agente.
- * @param {Object} estado - El estado actual del usuario.
- * @param {Object|null} llamada - Opcional, contenido adicional para llamadas a funciones.
- * @returns {Promise<Object>} La respuesta de la IA.
- */
 export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = null) {
   try {
     const _historial = ObtenerHistorial(userId, guion, estado)
@@ -39,15 +30,14 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
       }
     }
 
-    // 🟣 LIMITAR HISTORIAL SOLO A SYSTEM + ÚLTIMOS 8 TURNOS (user/assistant) 🟣
-    let historialFinal = []
-    if (_historial.length > 1) {
-      // Toma sólo los últimos 8 mensajes (pueden ser 4 pares user/assistant)
-      const ultimosTurnos = _historial.slice(-8)
-      historialFinal = [_historial[0], ...ultimosTurnos]
-    } else {
-      historialFinal = [..._historial]
-    }
+    // 🟣 OPTIMIZACIÓN: Solo un system prompt, nunca duplicado 🟣
+    // system prompt siempre debe estar SOLO en la posición [0]
+    // Limitar el resto a los últimos 8 mensajes user/assistant
+    const mensajesUserAssistant = _historial.slice(1).filter(
+      m => m.role === 'user' || m.role === 'assistant'
+    )
+    const ultimosTurnos = mensajesUserAssistant.slice(-8)
+    const historialFinal = [_historial[0], ...ultimosTurnos]
 
     const openai = OpenIA()
     const request = {
@@ -68,7 +58,6 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
     console.log('================= [DEBUG PROMPT OPENAI] =================');
     console.log('[DEBUG] Largo del historial:', historialFinal.length);
     historialFinal.forEach((m, idx) => {
-      // Solo muestra el rol, la longitud y un adelanto de 100 caracteres.
       const preview = m.content ? m.content.substring(0, 100).replace(/\n/g, ' ') : '';
       const dots = m.content && m.content.length > 100 ? '... [truncado]' : '';
       console.log(`[${idx}] (${m.role}) [${m.content?.length || 0} chars]: "${preview}${dots}"`);
