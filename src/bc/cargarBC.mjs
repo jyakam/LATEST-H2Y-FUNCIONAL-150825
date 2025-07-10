@@ -17,19 +17,15 @@ export async function cargarYDividirBC() {
     const bloques = extraerBloquesBC(rawText)
     ARCHIVO.PROMPT_BLOQUES = bloques // Guarda todos los bloques en memoria global
 
-    // Extrae los pasos de SECCION 1 como array (ANTES SECCION 2)
+    // Extrae los pasos de SECCION 1 como array (si tienes pasos anidados)
     const claveSeccion1 = Object.keys(bloques).find(k => k.includes('seccion_1'))
     if (claveSeccion1) {
       ARCHIVO.PROMPT_BLOQUES.PASOS_FLUJO = extraerPasosSeccion1(bloques[claveSeccion1])
       console.log('✅ [cargarBC] SECCION 1 dividida en', ARCHIVO.PROMPT_BLOQUES.PASOS_FLUJO.length, 'pasos.')
     }
 
-    // Extrae las categorías del BLOQUE DE PRODUCTOS (SECCION 2) (ANTES SECCION 3)
-    const claveSeccion2 = Object.keys(bloques).find(k => k.includes('seccion_2'))
-    if (claveSeccion2) {
-      ARCHIVO.PROMPT_BLOQUES.CATEGORIAS_PRODUCTOS = extraerCategoriasProductos(bloques[claveSeccion2])
-      console.log('✅ [cargarBC] SECCION 2 dividida en categorías:', Object.keys(ARCHIVO.PROMPT_BLOQUES.CATEGORIAS_PRODUCTOS))
-    }
+    // Ya NO busca categorías, pues ahora TODO son secciones principales
+    // Puedes eliminar el bloque que busca categorías
 
     console.log('✅ [cargarBC] Base de Conocimiento cargada y dividida en', Object.keys(bloques).length, 'bloques.')
     return bloques
@@ -68,7 +64,7 @@ function extraerBloquesBC(texto) {
 
 /**
  * Divide SECCION 1 en pasos individuales (array) usando delimitadores INICIO PASO y FIN PASO.
- * Antes era SECCION 2.
+ * Solo si aún tienes los pasos anidados en una sección. Si los tienes como bloques sueltos, puedes eliminar esto.
  */
 function extraerPasosSeccion1(textoSeccion1) {
   if (!textoSeccion1) return [];
@@ -88,27 +84,4 @@ function extraerPasosSeccion1(textoSeccion1) {
   return pasos;
 }
 
-/**
- * Extrae las categorías de productos del BLOQUE DE PRODUCTOS (SECCION 2).
- * Antes era SECCION 3.
- * Devuelve un objeto: { categoria1: texto, categoria2: texto, ... }
- */
-function extraerCategoriasProductos(textoSeccion2) {
-  const categorias = {}
-  const re = /=== INICIO CATEGORIA: (.*?) ===([\s\S]*?)=== FIN CATEGORIA: \1 ===/gi
-  let match
-  while ((match = re.exec(textoSeccion2)) !== null) {
-    const nombreOriginal = match[1].trim()
-    const nombreClave = nombreOriginal
-      .toLowerCase()
-      .replace(/[^a-z0-9]/gi, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '')
-    categorias[nombreClave] = match[2].trim()
-    console.log(`🟠 [cargarBC] Categoría cargada: "${nombreClave}" (${nombreOriginal})`)
-  }
-  if (Object.keys(categorias).length === 0) {
-    console.warn('⚠️ [cargarBC] No se encontraron categorías de productos en SECCION 2.')
-  }
-  return categorias
-}
+// Ya NO necesitas la función extraerCategoriasProductos, la puedes eliminar o comentar.
