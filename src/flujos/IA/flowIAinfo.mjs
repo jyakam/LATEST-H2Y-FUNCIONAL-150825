@@ -446,28 +446,39 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
 
     // 2. Verificamos si la respuesta, después de quitar marcadores, está vacía.
     // Si está vacía, significa que la IA SOLO envió un marcador y necesitamos volver a consultar.
-    if (!textoRespuestaLimpia) {
-      console.log(`👻 [TRANSICIÓN AUTOMÁTICA] La respuesta de la IA estaba vacía tras limpiar marcadores. Re-consultando... (Intento ${intentos + 1})`);
-      intentos++;
+   if (!textoRespuestaLimpia) {
+  // Buscar los bloques activos según el state y responder directo con el contenido
+  const bloques = ARCHIVO.PROMPT_BLOQUES;
+  const seccionesActivas = state.get('seccionesActivas') || [];
+  let respuestaFinal = '';
 
-      // Rearmamos el prompt CON EL NUEVO CONTEXTO (que `cicloMarcadoresIA` ya actualizó en el state)
-      const bloques = ARCHIVO.PROMPT_BLOQUES;
-      const promptSistema = armarPromptOptimizado(state, bloques); // Esta función ya loguea qué bloques se envían
-      
-      const contactoCache = getContactoByTelefono(ctx.from);
-      const estado = {
-        esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
-        contacto: contactoCache || {}
-      };
-      
-      // Volvemos a llamar a la IA con el prompt actualizado
-      respuestaActual = await EnviarIA(txt, promptSistema, {
-        ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
-      }, estado);
+  if (seccionesActivas.length) {
+    seccionesActivas.forEach(sec => {
+      const secNorm = normalizarClave(sec);
+      if (bloques[secNorm]) {
+        respuestaFinal += (bloques[secNorm] + '\n\n');
+      }
+    });
+  }
 
-      // Continuamos el bucle para volver a procesar la nueva respuesta
-      continue; 
+  // Si no hay secciones activas, responde con el paso actual del flujo
+  if (!respuestaFinal) {
+    const pasoActual = (state.get('pasoFlujoActual') ?? 0) + 1;
+    const pasoKey = `paso_${pasoActual}`;
+    if (bloques[pasoKey]) {
+      respuestaFinal = bloques[pasoKey];
     }
+  }
+
+  // Si no encontró nada, responde con un fallback
+  if (!respuestaFinal) {
+    respuestaFinal = 'No se encontró información específica para tu solicitud. ¿Puedes aclararme lo que necesitas?';
+  }
+
+  // Envía la respuesta final directo al usuario y termina el ciclo
+  await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
+  return;
+}
 
     // 3. Si llegamos aquí, es porque tenemos una respuesta de texto real para el usuario.
     // Salimos del bucle.
