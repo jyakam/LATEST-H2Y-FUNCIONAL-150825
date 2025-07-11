@@ -431,7 +431,7 @@ const res = await EnviarIA(txt, promptSistema, {
   return tools.fallBack()
 })
 
-// ✅ NUEVA VERSIÓN DE LA FUNCIÓN - REEMPLAZAR LA ANTIGUA
+// ✅ REEMPLAZA TODO TU BLOQUE manejarRespuestaIA POR ESTA VERSIÓN
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
   let respuestaActual = res;
   let intentos = 0;
@@ -439,46 +439,75 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
 
   console.log('🔄 [MANEJAR_IA] Iniciando ciclo de procesamiento de respuesta...');
 
+  // Guarda el paso y secciones activas ANTES de procesar marcadores
+  let anteriorPaso = state.get('pasoFlujoActual');
+  let anterioresSecciones = JSON.stringify(state.get('seccionesActivas') || []);
+
   while (intentos < maxIntentos) {
     // 1. Procesamos marcadores. Esto actualiza el STATE y nos devuelve la respuesta LIMPIA.
     respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
     const textoRespuestaLimpia = (respuestaActual.respuesta || '').trim();
 
-    // 2. Verificamos si la respuesta, después de quitar marcadores, está vacía.
-    // Si está vacía, significa que la IA SOLO envió un marcador y necesitamos volver a consultar.
-   if (!textoRespuestaLimpia) {
-  // Buscar los bloques activos según el state y responder directo con el contenido
-  const bloques = ARCHIVO.PROMPT_BLOQUES;
-  const seccionesActivas = state.get('seccionesActivas') || [];
-  let respuestaFinal = '';
+    // Detecta si hubo cambio de paso o de secciones activas tras procesar marcadores
+    let nuevoPaso = state.get('pasoFlujoActual');
+    let nuevasSecciones = JSON.stringify(state.get('seccionesActivas') || []);
+    let huboCambioDePaso = (anteriorPaso !== nuevoPaso);
+    let huboCambioDeSeccion = (anterioresSecciones !== nuevasSecciones);
 
-  if (seccionesActivas.length) {
-    seccionesActivas.forEach(sec => {
-      const secNorm = normalizarClave(sec);
-      if (bloques[secNorm]) {
-        respuestaFinal += (bloques[secNorm] + '\n\n');
-      }
-    });
-  }
+    // Si hubo cambio de paso o sección, consultamos de nuevo a la IA, ahora sí usando el contexto actualizado
+    if ((huboCambioDePaso || huboCambioDeSeccion)) {
+      console.log('🔁 [MANEJAR_IA] Cambio de paso/sección detectado. Consultando de nuevo con el nuevo contexto.');
+      // Actualiza el snapshot para la siguiente vuelta, por si hay doble salto
+      anteriorPaso = nuevoPaso;
+      anterioresSecciones = nuevasSecciones;
 
-  // Si no hay secciones activas, responde con el paso actual del flujo
-  if (!respuestaFinal) {
-    const pasoActual = (state.get('pasoFlujoActual') ?? 0) + 1;
-    const pasoKey = `paso_${pasoActual}`;
-    if (bloques[pasoKey]) {
-      respuestaFinal = bloques[pasoKey];
+      // Reconstruye el prompt con el contexto nuevo
+      const bloques = ARCHIVO.PROMPT_BLOQUES;
+      const promptSistema = armarPromptOptimizado(state, bloques);
+      const contactoCache = getContactoByTelefono(ctx.from);
+      const estado = {
+        esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
+        contacto: contactoCache || {}
+      };
+
+      // Reconsultamos a la IA (en el mismo txt, pero en el paso o sección correcta)
+      respuestaActual = await EnviarIA(txt, promptSistema, {
+        ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
+      }, estado);
+
+      // IMPORTANTE: Si la nueva respuesta también trae marcador, el ciclo vuelve a correr.
+      intentos++;
+      continue;
     }
-  }
 
-  // Si no encontró nada, responde con un fallback
-  if (!respuestaFinal) {
-    respuestaFinal = 'No se encontró información específica para tu solicitud. ¿Puedes aclararme lo que necesitas?';
-  }
+    // 2. Verificamos si la respuesta, después de quitar marcadores, está vacía.
+    // Si está vacía, significa que la IA SOLO envió un marcador y necesitamos responder directo con el bloque
+    if (!textoRespuestaLimpia) {
+      const bloques = ARCHIVO.PROMPT_BLOQUES;
+      const seccionesActivas = state.get('seccionesActivas') || [];
+      let respuestaFinal = '';
 
-  // Envía la respuesta final directo al usuario y termina el ciclo
-  await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
-  return;
-}
+      if (seccionesActivas.length) {
+        seccionesActivas.forEach(sec => {
+          const secNorm = normalizarClave(sec);
+          if (bloques[secNorm]) {
+            respuestaFinal += (bloques[secNorm] + '\n\n');
+          }
+        });
+      }
+      if (!respuestaFinal) {
+        const pasoActual = (state.get('pasoFlujoActual') ?? 0) + 1;
+        const pasoKey = `paso_${pasoActual}`;
+        if (bloques[pasoKey]) {
+          respuestaFinal = bloques[pasoKey];
+        }
+      }
+      if (!respuestaFinal) {
+        respuestaFinal = 'No se encontró información específica para tu solicitud. ¿Puedes aclararme lo que necesitas?';
+      }
+      await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
+      return;
+    }
 
     // 3. Si llegamos aquí, es porque tenemos una respuesta de texto real para el usuario.
     // Salimos del bucle.
@@ -510,7 +539,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
     // Aquí deberías tener un flowAyuda o similar, por ahora lo dejo como flowProductos
     return gotoFlow(flowProductos); 
   }
-  
+
   // 5. Enviamos la respuesta final al usuario
   await Responder(respuestaActual, ctx, flowDynamic, state);
 
