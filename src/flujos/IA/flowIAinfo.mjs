@@ -435,16 +435,16 @@ const res = await EnviarIA(txt, promptSistema, {
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
   let respuestaActual = res;
   let intentos = 0;
-  const maxIntentos = 3; // Límite para evitar bucles infinitos
+  const maxIntentos = 2; // Solo permitimos 1 reconsulta máxima para evitar loops.
 
   console.log('🔄 [MANEJAR_IA] Iniciando ciclo de procesamiento de respuesta...');
 
-  // Guarda el paso y secciones activas ANTES de procesar marcadores
+  // Guarda el paso y secciones activas antes de procesar marcadores
   let anteriorPaso = state.get('pasoFlujoActual');
   let anterioresSecciones = JSON.stringify(state.get('seccionesActivas') || []);
 
   while (intentos < maxIntentos) {
-    // 1. Procesamos marcadores. Esto actualiza el STATE y nos devuelve la respuesta LIMPIA.
+    // 1. Procesamos marcadores: actualiza el STATE y nos da la respuesta LIMPIA.
     respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
     const textoRespuestaLimpia = (respuestaActual.respuesta || '').trim();
 
@@ -454,14 +454,12 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
     let huboCambioDePaso = (anteriorPaso !== nuevoPaso);
     let huboCambioDeSeccion = (anterioresSecciones !== nuevasSecciones);
 
-    // Si hubo cambio de paso o sección, consultamos de nuevo a la IA, ahora sí usando el contexto actualizado
-    if ((huboCambioDePaso || huboCambioDeSeccion)) {
-      console.log('🔁 [MANEJAR_IA] Cambio de paso/sección detectado. Consultando de nuevo con el nuevo contexto.');
-      // Actualiza el snapshot para la siguiente vuelta, por si hay doble salto
+    if (huboCambioDePaso || huboCambioDeSeccion) {
+      // Actualizamos los snapshots para evitar dobles saltos en bucle
       anteriorPaso = nuevoPaso;
       anterioresSecciones = nuevasSecciones;
 
-      // Reconstruye el prompt con el contexto nuevo
+      // Reconstruimos el prompt con el contexto actualizado
       const bloques = ARCHIVO.PROMPT_BLOQUES;
       const promptSistema = armarPromptOptimizado(state, bloques);
       const contactoCache = getContactoByTelefono(ctx.from);
@@ -470,18 +468,19 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         contacto: contactoCache || {}
       };
 
-      // Reconsultamos a la IA (en el mismo txt, pero en el paso o sección correcta)
+      // Hacemos SOLO UNA reconsulta a la IA, pero ya en el paso correcto.
       respuestaActual = await EnviarIA(txt, promptSistema, {
         ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
       }, estado);
 
-      // IMPORTANTE: Si la nueva respuesta también trae marcador, el ciclo vuelve a correr.
+      // Procesamos marcadores de la segunda respuesta, por si hay doble salto (muy raro, pero seguro).
+      respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
+
       intentos++;
-      continue;
+      continue; // Solo permitimos una reconsulta máxima
     }
 
-    // 2. Verificamos si la respuesta, después de quitar marcadores, está vacía.
-    // Si está vacía, significa que la IA SOLO envió un marcador y necesitamos responder directo con el bloque
+    // Si la respuesta está vacía (solo venía marcador), respondemos DIRECTO con el contenido del paso/sección activa.
     if (!textoRespuestaLimpia) {
       const bloques = ARCHIVO.PROMPT_BLOQUES;
       const seccionesActivas = state.get('seccionesActivas') || [];
@@ -509,8 +508,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
       return;
     }
 
-    // 3. Si llegamos aquí, es porque tenemos una respuesta de texto real para el usuario.
-    // Salimos del bucle.
+    // Si llegamos aquí, tenemos una respuesta real para el usuario.
     console.log('✅ [MANEJAR_IA] Respuesta final obtenida:', textoRespuestaLimpia);
     break;
   }
@@ -521,7 +519,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
     return;
   }
 
-  // 4. Con la respuesta final, procesamos las acciones (mostrar productos, etc.)
+  // Procesamos acciones especiales (mostrar productos, detalles, ayuda, etc.)
   const respuestaIA = respuestaActual.respuesta?.toLowerCase?.() || '';
   console.log('🧠 [MANEJAR_IA] Analizando tokens de acción en respuesta final...');
 
@@ -536,14 +534,13 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
   }
   if (respuestaIA.includes('🧩solicitarayuda')) {
     console.log('➡️ [ACCIÓN] Detectado token para solicitar ayuda.');
-    // Aquí deberías tener un flowAyuda o similar, por ahora lo dejo como flowProductos
     return gotoFlow(flowProductos); 
   }
 
-  // 5. Enviamos la respuesta final al usuario
+  // Enviamos la respuesta final al usuario
   await Responder(respuestaActual, ctx, flowDynamic, state);
 
-  // 6. Verificamos si la IA pide avanzar de paso en el flujo principal
+  // Si la IA pide avanzar de paso con ⏭️siguiente paso, avanzamos en el flujo principal
   if (respuestaActual.respuesta?.includes('⏭️siguiente paso')) {
     let pasoActual = state.get('pasoFlujoActual') ?? 0;
     await state.update({ pasoFlujoActual: pasoActual + 1, seccionesActivas: [] }); // Limpiamos secciones al avanzar de paso
