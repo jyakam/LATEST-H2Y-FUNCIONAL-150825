@@ -28,14 +28,23 @@ export async function EnviarImagenOpenAI(paquete, userId, guion, estado, llamada
 
     const openai = OpenIA()
 
-    const completion = await openai.chat.completions.create({
-      model: BOT.MODELO_IA_IMAGENES,
-      messages: historial,
-      functions: FuncionesIA(guion),
-      function_call: 'auto',
-      max_tokens: BOT.TOKENS_IMAGENES,
-      temperature: BOT.TEMPERATURA
-    })
+   const funciones = FuncionesIA(guion);
+
+const completionParams = {
+  model: BOT.MODELO_IA_IMAGENES,
+  messages: historial,
+  max_tokens: BOT.TOKENS_IMAGENES,
+  temperature: BOT.TEMPERATURA
+};
+
+// Solo agrega "functions" y "function_call" si hay funciones disponibles
+if (funciones && funciones.length > 0) {
+  completionParams.functions = funciones;
+  completionParams.function_call = 'auto';
+}
+
+// Aquí cierras el bloque de parámetros y haces la llamada:
+const completion = await openai.chat.completions.create(completionParams);
 
     const message = completion.choices?.[0]?.message
     if (!message) throw new Error('❌ No se recibió mensaje de respuesta.')
