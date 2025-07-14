@@ -20,15 +20,24 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
   try {
     const _historial = ObtenerHistorial(userId, guion, estado)
 
-    if (!llamada) {
-      _historial.push({ role: 'user', content: msj })
-    } else {
-      if (Array.isArray(llamada)) {
-        _historial.push(...llamada)
-      } else if (typeof llamada === 'object') {
-        _historial.push(llamada)
-      }
-    }
+// 🔴 NUEVO BLOQUE QUE DEBES AGREGAR 🔴
+if (!_historial.length || !_historial[0] || _historial[0].role !== 'system') {
+  _historial.unshift({
+    role: 'system',
+    content: 'Eres un asistente virtual que ayuda a los clientes a resolver sus dudas y procesar solicitudes.'
+  });
+}
+// 🔴 FIN DEL BLOQUE NUEVO 🔴
+
+if (!llamada) {
+  _historial.push({ role: 'user', content: msj })
+} else {
+  if (Array.isArray(llamada)) {
+    _historial.push(...llamada)
+  } else if (typeof llamada === 'object') {
+    _historial.push(llamada)
+  }
+}
 
     // 🟣 OPTIMIZACIÓN: Solo un system prompt, nunca duplicado 🟣
     // system prompt siempre debe estar SOLO en la posición [0]
