@@ -8,8 +8,8 @@ RUN npm install -g pnpm
 WORKDIR /app
 
 # Copiar archivos de configuración y dependencias
-COPY package.json ./
-RUN pnpm install --no-frozen-lockfile --ignore-scripts
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Copiar el resto del código
 COPY . .
@@ -34,6 +34,7 @@ EXPOSE 3001
 
 # Variable de entorno
 ENV RUNNING_IN_DOCKER=true
+
 
 CMD ["pm2-runtime", "start", "app.js", "--cron", "0 3 * * *"]
 #CMD ["npm", "start"]
