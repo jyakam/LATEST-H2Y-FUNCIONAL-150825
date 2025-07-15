@@ -1,4 +1,4 @@
-// flowIAinfo.mjs - VERSIÓN CON MICRÓFONOS DE DIAGNÓSTICO
+// flowIAinfo.mjs - VERSIÓN CORREGIDA PARA PROCESAR AUDIOS
 import 'dotenv/config'
 import fs from 'fs'
 import { addKeyword, EVENTS } from '@builderbot/bot'
@@ -108,7 +108,7 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
 }
 
 // IMPORTANTE: Cache de contactos (nuevo sistema)
-import { getContactoByTelefono, getCacheContactos, actualizarContactoEnCache } from '../../funciones/helpers/cacheContactos.mjs'
+import { getContactoByTelefono, getCacheContactos, actualizarContactoEnCache, cargarContactosDesdeAppSheet } from '../../funciones/helpers/cacheContactos.mjs'
 
 export function extraerNombreProductoDeVision(texto) {
   const match = texto.match(/["“](.*?)["”]/)
@@ -118,10 +118,10 @@ export function extraerNombreProductoDeVision(texto) {
 
 export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, tools) => {
-    // 🎙️ MICROFONO DE DIAGNÓSTICO 1 - INICIO DE NUEVA CONVERSACIÓN
-    console.log('⚡️⚡️⚡️ [DIAGNÓSTICO] INICIANDO "WELCOME" PARA EL CLIENTE: ⚡️⚡️⚡️', ctx.from);
-    const currentStateWelcome = { paso: tools.state.get('pasoFlujoActual'), secciones: tools.state.get('seccionesActivas') };
-    console.log('      [DIAGNÓSTICO] Estado ANTES de procesar:', JSON.stringify(currentStateWelcome));
+    // 🎙️ MICROFONO DE DIAGNÓSTICO 1 - INICIO DE NUEVA CONVERSACIÓN
+    console.log('⚡️⚡️⚡️ [DIAGNÓSTICO] INICIANDO "WELCOME" PARA EL CLIENTE: ⚡️⚡️⚡️', ctx.from);
+    const currentStateWelcome = { paso: tools.state.get('pasoFlujoActual'), secciones: tools.state.get('seccionesActivas') };
+    console.log('      [DIAGNÓSTICO] Estado ANTES de procesar:', JSON.stringify(currentStateWelcome));
 
     const { flowDynamic, endFlow, gotoFlow, provider, state } = tools;
     const phone = ctx.from.split('@')[0];
@@ -130,9 +130,9 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     // ==== INICIALIZA SOLO EN EL PRIMER MENSAJE ====
     // Si no hay pasoFlujoActual o seccionesActivas, inicializa en PASO 1
     if (!state.get('pasoFlujoActual') && !state.get('seccionesActivas')) {
-      await state.update({ 
-        pasoFlujoActual: 0,    // PASO 1 del flujo
-        seccionesActivas: []    // No hay secciones activas al arrancar
+      await state.update({
+        pasoFlujoActual: 0,   // PASO 1 del flujo
+        seccionesActivas: []   // No hay secciones activas al arrancar
       });
       console.log('🟢 [IAINFO] Estado inicializado: PASO 1, seccionesActivas vacías');
     } else {
@@ -141,27 +141,7 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
 
     console.log('📩 [IAINFO] Mensaje recibido de:', phone)
     console.log(`🔍 [IAINFO] Estado inicial de la caché: ${getCacheContactos().length} contactos`)
- 
-    // --- [LOGS para depuración] ---
-console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.PROMPT_BLOQUES));
-    
-    // Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
-const bloques = ARCHIVO.PROMPT_BLOQUES;
-    // DEBUG: Muestra cuántos pasos detectó en la sección de flujo
-console.log('🟠 [DEBUG] PASOS_FLUJO:', (bloques.PASOS_FLUJO || []).map(paso => paso.substring(0, 100) + '...'));
 
-// --- Detecta intención de productos y testimonios (ajusta según tus helpers) ---
-const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } =
-  await obtenerIntencionConsulta(message, '', state);
-
-// --- Construye el prompt optimizado ---
-const promptSistema = armarPromptOptimizado(state, bloques, {
-  incluirProductos: esConsultaProductos,
-  categoriaProductos: categoriaDetectada,
-  incluirTestimonios: esConsultaTestimonios
-});
-console.log('🟢 [FLOW] Secciones activas en el state:', state.get('seccionesActivas') || []);
-    
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
     let contacto = getContactoByTelefono(phone)
     if (!contacto) {
@@ -217,7 +197,7 @@ console.log('🟢 [FLOW] Secciones activas en el state:', state.get('seccionesAc
     if (contacto) await ActualizarFechasContacto(contacto, phone)
 
     // ------ BLOQUE DE IA PARA DATOS DE CONTACTO: SIEMPRE SE EJECUTA ------
-       const datos = {}
+    const datos = {}
     if (/me llamo|mi nombre es/i.test(message)) {
       const nombre = message.split(/me llamo|mi nombre es/i)[1]?.trim()
       if (nombre && !/\d/.test(nombre)) datos.NOMBRE = nombre
@@ -226,338 +206,320 @@ console.log('🟢 [FLOW] Secciones activas en el state:', state.get('seccionesAc
     if (email) datos.EMAIL = email[0]
 
     // IA para detectar y actualizar contacto completo
-    const { detectarIntencionContactoIA, verificarYActualizarContactoSiEsNecesario } = await import('../../funciones/helpers/contactosIAHelper.mjs')
     const esDatosContacto = await detectarIntencionContactoIA(message)
     if (esDatosContacto) {
       console.log("🛡️ [FLOWIAINFO][WELCOME] Se va a actualizar contacto. Contacto en cache:", contacto)
       await verificarYActualizarContactoSiEsNecesario(message, phone, contacto, datos)
     }
 
-    // ------ CHEQUEO DEL FLAG DE PRODUCTOS ------
-    if (!BOT.PRODUCTOS) {
-      console.log('🛑 [IAINFO] Flag PRODUCTOS está en FALSE, saltando lógica de productos.')
-      // Aquí la IA responde SIN lógica de productos pero contactos sí funcionan
-      const res = await EnviarIA(ctx.body, promptSistema, {
-        ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: ''
-      }, { esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre', contacto: contacto || {} })
-      await Responder(res, ctx, flowDynamic, state)
-      return
-    }
+    // ✅✅✅ INICIO DE LA CORRECCIÓN ✅✅✅
+    // La detección de archivos ahora se hace ANTES de verificar el flag de productos.
 
-    // ------ LÓGICA DE PRODUCTOS (SOLO SI EL FLAG ESTÁ EN TRUE) ------
-    if (!state.get('_productosFull')?.length) {
-      await cargarProductosAlState(state)
-      await state.update({ __productosCargados: true })
-      console.log('📦 [IAINFO] Productos cargados en cache para:', phone)
-    }
+    await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+    const detectar = await DetectarArchivos(ctx, state);
 
-    await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
-
-    const detectar = await DetectarArchivos(ctx, state)
-
-    if (state.get('tipoMensaje') === 1) {
-      const imagenes = state.get('archivos')?.filter(item => item.tipo === 1)
-      let resultado = ''
+    if (state.get('tipoMensaje') === 1) { // Si es una imagen
+      const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
+      let resultado = '';
       if (imagenes?.length > 0) {
-        const fileBuffer = fs.readFileSync(imagenes[0].ruta)
-        resultado = await enviarImagenProductoOpenAI(fileBuffer)
-        resultado = extraerNombreProductoDeVision(resultado)
+        const fileBuffer = fs.readFileSync(imagenes[0].ruta);
+        resultado = await enviarImagenProductoOpenAI(fileBuffer);
+        resultado = extraerNombreProductoDeVision(resultado);
       }
       if (resultado && resultado !== '' && resultado !== 'No es un producto') {
         await state.update({
           productoDetectadoEnImagen: true,
           productoReconocidoPorIA: resultado
-        })
-        console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`)
+        });
+        console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
+      }
+    }
+
+    // AgruparMensaje envuelve toda la lógica para procesar el texto final (de un mensaje de texto o de un audio transcrito).
+    AgruparMensaje(detectar, async (txt) => {
+      // Guardar mensaje del cliente en el historial
+      actualizarHistorialConversacion(txt, 'cliente', state);
+      Escribiendo(ctx);
+      console.log('🧾 [IAINFO] Texto agrupado final del usuario:', txt);
+
+      // Construye el promptSistema para la IA usando los bloques de la BC
+      const bloques = ARCHIVO.PROMPT_BLOQUES;
+      const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(txt, '', state);
+      const promptSistema = armarPromptOptimizado(state, bloques, {
+        incluirProductos: esConsultaProductos,
+        categoriaProductos: categoriaDetectada,
+        incluirTestimonios: esConsultaTestimonios
+      });
+
+      const estado = {
+        esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+        contacto: contacto || {}
+      };
+
+      // ------ CHEQUEO DEL FLAG DE PRODUCTOS ------
+      if (!BOT.PRODUCTOS) {
+        // MODO SIN PRODUCTOS: La IA responde usando solo la BC, sin catálogo.
+        console.log('🛑 [IAINFO] Flag PRODUCTOS está en FALSE. Usando IA general.');
+        const res = await EnviarIA(txt, promptSistema, {
+          ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: ''
+        }, estado);
+        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+
+      } else {
+        // MODO CON PRODUCTOS: Lógica de productos completa.
+        if (!state.get('_productosFull')?.length) {
+          await cargarProductosAlState(state);
+          await state.update({ __productosCargados: true });
+          console.log('📦 [IAINFO] Productos cargados en cache para:', phone);
+        }
+
+        const productos = await obtenerProductosCorrectos(txt, state);
+        const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
+
+        if (productos.length) {
+          await state.update({ productosUltimaSugerencia: productos });
+          console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`);
+        }
+
+        const res = await EnviarIA(txt, promptSistema, {
+          ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
+        }, estado);
+
+        console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
+        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+      }
+
+      await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+    });
+  })
+
+ .addAction({ capture: true }, async (ctx, tools) => {
+    // 🎙️ MICROFONO DE DIAGNÓSTICO 2 - INICIO DE MENSAJE DE CONTINUACIÓN
+    console.log('⚡️⚡️⚡️ [DIAGNÓSTICO] INICIANDO "CAPTURE" PARA EL CLIENTE: ⚡️⚡️⚡️', ctx.from);
+    const currentStateCapture = { paso: tools.state.get('pasoFlujoActual'), secciones: tools.state.get('seccionesActivas') };
+    console.log('      [DIAGNÓSTICO] Estado ANTES de procesar:', JSON.stringify(currentStateCapture));
+
+    const { flowDynamic, endFlow, gotoFlow, provider, state } = tools;
+    const phone = ctx.from.split('@')[0];
+    const message = ctx.body.trim();
+
+    console.log('🟢 [IAINFO] Estado actual: PASO', state.get('pasoFlujoActual') + 1, ', seccionesActivas:', state.get('seccionesActivas') || []);
+
+    let contacto = getContactoByTelefono(phone);
+    const datos = {};
+
+    // Detecta y guarda nombre/email si está presente literal
+    if (/me llamo|mi nombre es/i.test(message)) {
+      const nombre = message.split(/me llamo|mi nombre es/i)[1]?.trim();
+      if (nombre && !/\d/.test(nombre)) datos.NOMBRE = nombre;
+    }
+    const email = message.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+    if (email) datos.EMAIL = email[0];
+
+    // ------ SIEMPRE intentar actualización completa de contacto por IA ------
+    const esDatosContacto = await detectarIntencionContactoIA(message);
+    if (esDatosContacto) {
+      console.log("🛡️ [FLOWIAINFO][capture] Se va a actualizar contacto. Contacto en cache:", contacto);
+      await verificarYActualizarContactoSiEsNecesario(message, phone, contacto, datos);
+      contacto = getContactoByTelefono(phone);
+    }
+
+    // Actualiza fechas de contacto SIEMPRE
+    if (contacto) await ActualizarFechasContacto(contacto, phone);
+
+    // ✅✅✅ INICIO DE LA CORRECCIÓN (SECCIÓN CAPTURE) ✅✅✅
+    await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+    const detectar = await DetectarArchivos(ctx, state);
+
+    if (state.get('tipoMensaje') === 1) { // Si es una imagen
+      const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
+      let resultado = '';
+      if (imagenes?.length > 0) {
+        const fileBuffer = fs.readFileSync(imagenes[0].ruta);
+        resultado = await enviarImagenProductoOpenAI(fileBuffer);
+        resultado = extraerNombreProductoDeVision(resultado);
+      }
+      if (resultado && resultado !== '' && resultado !== 'No es un producto') {
+        await state.update({
+          productoDetectadoEnImagen: true,
+          productoReconocidoPorIA: resultado
+        });
+        console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
       }
     }
 
     AgruparMensaje(detectar, async (txt) => {
       // Guardar mensaje del cliente en el historial
       actualizarHistorialConversacion(txt, 'cliente', state);
-      Escribiendo(ctx)
-      console.log('🧾 [IAINFO] Texto agrupado final del usuario:', txt)
+      if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
+      reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
+      Escribiendo(ctx);
 
-      const productos = await obtenerProductosCorrectos(txt, state)
-      const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : ''
+      console.log('✏️ [IAINFO] Mensaje capturado en continuación de conversación:', txt);
 
-      if (productos.length) {
-        await state.update({ productosUltimaSugerencia: productos })
-        console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`)
-      }
+      // Construye el promptSistema para la IA
+      const bloques = ARCHIVO.PROMPT_BLOQUES;
+      const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(txt, state.get('ultimaConsulta') || '', state);
+      const promptSistema = armarPromptOptimizado(state, bloques, {
+        incluirProductos: esConsultaProductos,
+        categoriaProductos: categoriaDetectada,
+        incluirTestimonios: esConsultaTestimonios
+      });
 
       const estado = {
         esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
         contacto: contacto || {}
-      }
-
-      // console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema); // <--- AHORA NO SE VE EN EL LOG
-
-const res = await EnviarIA(txt, promptSistema, {
-  ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-}, estado)
-
-      console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta)
-
-      await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt)
-
-      await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
-    })
-  })
-
-  .addAction({ capture: true }, async (ctx, tools) => {
-    // 🎙️ MICROFONO DE DIAGNÓSTICO 2 - INICIO DE MENSAJE DE CONTINUACIÓN
-    console.log('⚡️⚡️⚡️ [DIAGNÓSTICO] INICIANDO "CAPTURE" PARA EL CLIENTE: ⚡️⚡️⚡️', ctx.from);
-    const currentStateCapture = { paso: tools.state.get('pasoFlujoActual'), secciones: tools.state.get('seccionesActivas') };
-    console.log('      [DIAGNÓSTICO] Estado ANTES de procesar:', JSON.stringify(currentStateCapture));
-
-    const { flowDynamic, endFlow, gotoFlow, provider, state } = tools;
-    const phone = ctx.from.split('@')[0];
-    const message = ctx.body.trim();
-
-    // ==== NO REINICIAR EL STATE EN MENSAJES POSTERIORES ====
-    // Mantener pasoFlujoActual y seccionesActivas existentes
-    console.log('🟢 [IAINFO] Estado actual: PASO', state.get('pasoFlujoActual') + 1, ', seccionesActivas:', state.get('seccionesActivas') || []);
-
-  let contacto = getContactoByTelefono(phone)
-  const datos = {}
-
-    // --- [LOGS para depuración] ---
-console.log('🟡 [DEBUG] Claves disponibles en bloques:', Object.keys(ARCHIVO.PROMPT_BLOQUES));
-
-// Construye el promptSistema para la IA usando los bloques de la BC (sección 1 y 2)
-const bloques = ARCHIVO.PROMPT_BLOQUES;
-
-// DEBUG: Muestra cuántos pasos detectó en la sección de flujo
-console.log('🟠 [DEBUG] PASOS_FLUJO:', (bloques.PASOS_FLUJO || []).map(paso => paso.substring(0, 100) + '...'));
-    
-// --- Detecta intención de productos y testimonios (ajusta según tus helpers) ---
-const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } =
-  await obtenerIntencionConsulta(message, '', state);
-
-// --- Construye el prompt optimizado ---
-const promptSistema = armarPromptOptimizado(state, bloques, {
-  incluirProductos: esConsultaProductos,
-  categoriaProductos: categoriaDetectada,
-  incluirTestimonios: esConsultaTestimonios
-});
-console.log('🟢 [FLOW] Secciones activas en el state:', state.get('seccionesActivas') || []);
-    
-  await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
-
-  // Detecta y guarda nombre/email si está presente literal
-  if (/me llamo|mi nombre es/i.test(message)) {
-    const nombre = message.split(/me llamo|mi nombre es/i)[1]?.trim()
-    if (nombre && !/\d/.test(nombre)) datos.NOMBRE = nombre
-  }
-  const email = message.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i)
-  if (email) datos.EMAIL = email[0]
-
-  // ------ SIEMPRE intentar actualización completa de contacto por IA ------
-  const { detectarIntencionContactoIA, verificarYActualizarContactoSiEsNecesario } = await import('../../funciones/helpers/contactosIAHelper.mjs')
-  const esDatosContacto = await detectarIntencionContactoIA(message)
-  if (esDatosContacto) {
-    console.log("🛡️ [FLOWIAINFO][capture] Se va a actualizar contacto. Contacto en cache:", contacto)
-    await verificarYActualizarContactoSiEsNecesario(message, phone, contacto, datos)
-    contacto = getContactoByTelefono(phone)
-  }
-
-  // Actualiza fechas de contacto SIEMPRE
-  if (contacto) await ActualizarFechasContacto(contacto, phone)
-
-  // ------ CHEQUEO DEL FLAG DE PRODUCTOS ------
-  if (!BOT.PRODUCTOS) {
-    console.log('🛑 [IAINFO][capture] Flag PRODUCTOS está en FALSE, saltando lógica de productos.')
-    const res = await EnviarIA(message, promptSistema, {
-      ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: ''
-    }, { esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre', contacto: contacto || {} })
-    await Responder(res, ctx, flowDynamic, state)
-    return tools.fallBack()
-  }
-
-  // ------ DESDE AQUÍ SOLO CORRE SI HAY PRODUCTOS ACTIVOS ------
-  if (!state.get('_productosFull')?.length) {
-    await cargarProductosAlState(state)
-    await state.update({ __productosCargados: true })
-  }
-
-  const detectar = await DetectarArchivos(ctx, state)
-
-  if (state.get('tipoMensaje') === 1) {
-    const imagenes = state.get('archivos')?.filter(item => item.tipo === 1)
-    let resultado = ''
-    if (imagenes?.length > 0) {
-      const fileBuffer = fs.readFileSync(imagenes[0].ruta)
-      resultado = await enviarImagenProductoOpenAI(fileBuffer)
-      resultado = extraerNombreProductoDeVision(resultado)
-    }
-    if (resultado && resultado !== '' && resultado !== 'No es un producto') {
-      await state.update({
-        productoDetectadoEnImagen: true,
-        productoReconocidoPorIA: resultado
-      })
-      console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`)
-    }
-  }
-
-  AgruparMensaje(detectar, async (txt) => {
-    // Guardar mensaje del cliente en el historial
-    actualizarHistorialConversacion(txt, 'cliente', state);
-    if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow)
-    reset(ctx, gotoFlow, BOT.IDLE_TIME * 60)
-    Escribiendo(ctx)
-
-    console.log('✏️ [IAINFO] Mensaje capturado en continuación de conversación:', txt)
-
-    const productos = await obtenerProductosCorrectos(txt, state)
-    const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : ''
-
-    if (productos.length) {
-      await state.update({ productosUltimaSugerencia: productos })
-    }
-
-    // ------ SIEMPRE chequear si hay nuevos datos de contacto ------
-    const { detectarIntencionContactoIA, verificarYActualizarContactoSiEsNecesario } = await import('../../funciones/helpers/contactosIAHelper.mjs')
-    const esDatosContacto = await detectarIntencionContactoIA(txt)
-    if (esDatosContacto) {
-      console.log("🛡️ [FLOWIAINFO][capture][AgruparMensaje] Se va a actualizar contacto. Contacto en cache:", contacto)
-      await verificarYActualizarContactoSiEsNecesario(txt, phone, contacto, datos)
-      contacto = getContactoByTelefono(phone)
-    }
-
-    const estado = {
-      esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-      contacto: contacto || {}
-    }
-
-    // console.log('=== [PROMPT SISTEMA REAL] ===\n', promptSistema); // <--- AHORA NO SE VE EN EL LOG
-const res = await EnviarIA(txt, promptSistema, {
-  ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-}, estado)
-
-    await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt)
-    await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' })
-  })
-
-  return tools.fallBack()
-})
-
-// ✅ REEMPLAZA TODO TU BLOQUE manejarRespuestaIA POR ESTA VERSIÓN
-async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-  let respuestaActual = res;
-  let intentos = 0;
-  const maxIntentos = 2; // Solo permitimos 1 reconsulta máxima para evitar loops.
-
-  console.log('🔄 [MANEJAR_IA] Iniciando ciclo de procesamiento de respuesta...');
-
-  // Guarda el paso y secciones activas antes de procesar marcadores
-  let anteriorPaso = state.get('pasoFlujoActual');
-  let anterioresSecciones = JSON.stringify(state.get('seccionesActivas') || []);
-
-  while (intentos < maxIntentos) {
-    // 1. Procesamos marcadores: actualiza el STATE y nos da la respuesta LIMPIA.
-    respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
-    const textoRespuestaLimpia = (respuestaActual.respuesta || '').trim();
-
-    // Detecta si hubo cambio de paso o de secciones activas tras procesar marcadores
-    let nuevoPaso = state.get('pasoFlujoActual');
-    let nuevasSecciones = JSON.stringify(state.get('seccionesActivas') || []);
-    let huboCambioDePaso = (anteriorPaso !== nuevoPaso);
-    let huboCambioDeSeccion = (anterioresSecciones !== nuevasSecciones);
-
-    if (huboCambioDePaso || huboCambioDeSeccion) {
-      // Actualizamos los snapshots para evitar dobles saltos en bucle
-      anteriorPaso = nuevoPaso;
-      anterioresSecciones = nuevasSecciones;
-
-      // Reconstruimos el prompt con el contexto actualizado
-      const bloques = ARCHIVO.PROMPT_BLOQUES;
-      const promptSistema = armarPromptOptimizado(state, bloques);
-      const contactoCache = getContactoByTelefono(ctx.from);
-      const estado = {
-        esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
-        contacto: contactoCache || {}
       };
 
-      // Hacemos SOLO UNA reconsulta a la IA, pero ya en el paso correcto.
-      respuestaActual = await EnviarIA(txt, promptSistema, {
-        ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
-      }, estado);
+      // ------ CHEQUEO DEL FLAG DE PRODUCTOS ------
+      if (!BOT.PRODUCTOS) {
+        // MODO SIN PRODUCTOS
+        console.log('🛑 [IAINFO][capture] Flag PRODUCTOS está en FALSE. Usando IA general.');
+        const res = await EnviarIA(txt, promptSistema, {
+          ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: ''
+        }, estado);
+        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
 
-      // Procesamos marcadores de la segunda respuesta, por si hay doble salto (muy raro, pero seguro).
-      respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
-
-      intentos++;
-      continue; // Solo permitimos una reconsulta máxima
-    }
-
-    // Si la respuesta está vacía (solo venía marcador), respondemos DIRECTO con el contenido del paso/sección activa.
-    if (!textoRespuestaLimpia) {
-      const bloques = ARCHIVO.PROMPT_BLOQUES;
-      const seccionesActivas = state.get('seccionesActivas') || [];
-      let respuestaFinal = '';
-
-      if (seccionesActivas.length) {
-        seccionesActivas.forEach(sec => {
-          const secNorm = normalizarClave(sec);
-          if (bloques[secNorm]) {
-            respuestaFinal += (bloques[secNorm] + '\n\n');
-          }
-        });
-      }
-      if (!respuestaFinal) {
-        const pasoActual = (state.get('pasoFlujoActual') ?? 0) + 1;
-        const pasoKey = `paso_${pasoActual}`;
-        if (bloques[pasoKey]) {
-          respuestaFinal = bloques[pasoKey];
+      } else {
+        // MODO CON PRODUCTOS
+        if (!state.get('_productosFull')?.length) {
+          await cargarProductosAlState(state);
+          await state.update({ __productosCargados: true });
         }
+
+        const productos = await obtenerProductosCorrectos(txt, state);
+        const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
+
+        if (productos.length) {
+          await state.update({ productosUltimaSugerencia: productos });
+        }
+
+        const res = await EnviarIA(txt, promptSistema, {
+          ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
+        }, estado);
+
+        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
       }
-      if (!respuestaFinal) {
-        respuestaFinal = 'No se encontró información específica para tu solicitud. ¿Puedes aclararme lo que necesitas?';
-      }
-      await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
-      return;
+
+      await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+    });
+
+    return tools.fallBack();
+ });
+
+async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
+    let respuestaActual = res;
+    let intentos = 0;
+    const maxIntentos = 2; // Solo permitimos 1 reconsulta máxima para evitar loops.
+
+    console.log('🔄 [MANEJAR_IA] Iniciando ciclo de procesamiento de respuesta...');
+
+    // Guarda el paso y secciones activas antes de procesar marcadores
+    let anteriorPaso = state.get('pasoFlujoActual');
+    let anterioresSecciones = JSON.stringify(state.get('seccionesActivas') || []);
+
+    while (intentos < maxIntentos) {
+        // 1. Procesamos marcadores: actualiza el STATE y nos da la respuesta LIMPIA.
+        respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
+        const textoRespuestaLimpia = (respuestaActual.respuesta || '').trim();
+
+        // Detecta si hubo cambio de paso o de secciones activas tras procesar marcadores
+        let nuevoPaso = state.get('pasoFlujoActual');
+        let nuevasSecciones = JSON.stringify(state.get('seccionesActivas') || []);
+        let huboCambioDePaso = (anteriorPaso !== nuevoPaso);
+        let huboCambioDeSeccion = (anterioresSecciones !== nuevasSecciones);
+
+        if (huboCambioDePaso || huboCambioDeSeccion) {
+            // Actualizamos los snapshots para evitar dobles saltos en bucle
+            anteriorPaso = nuevoPaso;
+            anterioresSecciones = nuevasSecciones;
+
+            // Reconstruimos el prompt con el contexto actualizado
+            const bloques = ARCHIVO.PROMPT_BLOQUES;
+            const promptSistema = armarPromptOptimizado(state, bloques);
+            const contactoCache = getContactoByTelefono(ctx.from);
+            const estado = {
+                esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
+                contacto: contactoCache || {}
+            };
+
+            // Hacemos SOLO UNA reconsulta a la IA, pero ya en el paso correcto.
+            respuestaActual = await EnviarIA(txt, promptSistema, {
+                ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
+            }, estado);
+
+            // Procesamos marcadores de la segunda respuesta, por si hay doble salto (muy raro, pero seguro).
+            respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
+
+            intentos++;
+            continue; // Solo permitimos una reconsulta máxima
+        }
+
+        // Si la respuesta está vacía (solo venía marcador), respondemos DIRECTO con el contenido del paso/sección activa.
+        if (!textoRespuestaLimpia) {
+            const bloques = ARCHIVO.PROMPT_BLOQUES;
+            const seccionesActivas = state.get('seccionesActivas') || [];
+            let respuestaFinal = '';
+
+            if (seccionesActivas.length) {
+                seccionesActivas.forEach(sec => {
+                    const secNorm = normalizarClave(sec);
+                    if (bloques[secNorm]) {
+                        respuestaFinal += (bloques[secNorm] + '\n\n');
+                    }
+                });
+            }
+            if (!respuestaFinal) {
+                const pasoActualNum = state.get('pasoFlujoActual') ?? 0;
+                if (bloques.PASOS_FLUJO && bloques.PASOS_FLUJO[pasoActualNum]) {
+                    respuestaFinal = bloques.PASOS_FLUJO[pasoActualNum];
+                }
+            }
+            if (!respuestaFinal) {
+                respuestaFinal = 'No se encontró información específica para tu solicitud. ¿Puedes aclararme lo que necesitas?';
+            }
+            await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
+            return;
+        }
+
+        // Si llegamos aquí, tenemos una respuesta real para el usuario.
+        console.log('✅ [MANEJAR_IA] Respuesta final obtenida:', textoRespuestaLimpia);
+        break;
     }
 
-    // Si llegamos aquí, tenemos una respuesta real para el usuario.
-    console.log('✅ [MANEJAR_IA] Respuesta final obtenida:', textoRespuestaLimpia);
-    break;
-  }
+    if (intentos >= maxIntentos) {
+        console.error('❌ [ERROR] Se alcanzó el número máximo de re-consultas a la IA. El bot podría estar en un bucle. Finalizando flujo.');
+        await flowDynamic('Lo siento, parece que he tenido un problema procesando tu solicitud. Por favor, intenta de nuevo en un momento.');
+        return;
+    }
 
-  if (intentos >= maxIntentos) {
-    console.error('❌ [ERROR] Se alcanzó el número máximo de re-consultas a la IA. El bot podría estar en un bucle. Finalizando flujo.');
-    await flowDynamic('Lo siento, parece que he tenido un problema procesando tu solicitud. Por favor, intenta de nuevo en un momento.');
-    return;
-  }
+    // Procesamos acciones especiales (mostrar productos, detalles, ayuda, etc.)
+    const respuestaIA = respuestaActual.respuesta?.toLowerCase?.() || '';
+    console.log('🧠 [MANEJAR_IA] Analizando tokens de acción en respuesta final...');
 
-  // Procesamos acciones especiales (mostrar productos, detalles, ayuda, etc.)
-  const respuestaIA = respuestaActual.respuesta?.toLowerCase?.() || '';
-  console.log('🧠 [MANEJAR_IA] Analizando tokens de acción en respuesta final...');
+    if (respuestaIA.includes('🧩mostrarproductos')) {
+        console.log('➡️ [ACCIÓN] Detectado token para mostrar productos.');
+        await state.update({ ultimaConsulta: txt });
+        return gotoFlow(flowProductos);
+    }
+    if (respuestaIA.includes('🧩mostrardetalles')) {
+        console.log('➡️ [ACCIÓN] Detectado token para mostrar detalles.');
+        return gotoFlow(flowDetallesProducto);
+    }
+    if (respuestaIA.includes('🧩solicitarayuda')) {
+        console.log('➡️ [ACCIÓN] Detectado token para solicitar ayuda.');
+        return gotoFlow(flowProductos);
+    }
 
-  if (respuestaIA.includes('🧩mostrarproductos')) {
-    console.log('➡️ [ACCIÓN] Detectado token para mostrar productos.');
-    await state.update({ ultimaConsulta: txt });
-    return gotoFlow(flowProductos);
-  }
-  if (respuestaIA.includes('🧩mostrardetalles')) {
-    console.log('➡️ [ACCIÓN] Detectado token para mostrar detalles.');
-    return gotoFlow(flowDetallesProducto);
-  }
-  if (respuestaIA.includes('🧩solicitarayuda')) {
-    console.log('➡️ [ACCIÓN] Detectado token para solicitar ayuda.');
-    return gotoFlow(flowProductos); 
-  }
+    await Responder(respuestaActual, ctx, flowDynamic, state);
 
-  // Enviamos la respuesta final al usuario
-  await Responder(respuestaActual, ctx, flowDynamic, state);
-
-  // Si la IA pide avanzar de paso con ⏭️siguiente paso, avanzamos en el flujo principal
-  if (respuestaActual.respuesta?.includes('⏭️siguiente paso')) {
-    let pasoActual = state.get('pasoFlujoActual') ?? 0;
-    await state.update({ pasoFlujoActual: pasoActual + 1, seccionesActivas: [] }); // Limpiamos secciones al avanzar de paso
-    console.log('➡️ [FLUJO] Avanzando al siguiente paso del flujo:', pasoActual + 2);
-  }
+    if (respuestaActual.respuesta?.includes('⏭️siguiente paso')) {
+        let pasoActual = state.get('pasoFlujoActual') ?? 0;
+        await state.update({ pasoFlujoActual: pasoActual + 1, seccionesActivas: [] });
+        console.log('➡️ [FLUJO] Avanzando al siguiente paso del flujo:', pasoActual + 2);
+    }
 }
+
 
 async function Responder(res, ctx, flowDynamic, state) {
   if (res.tipo === ENUM_IA_RESPUESTAS.TEXTO && res.respuesta) {
@@ -567,14 +529,13 @@ async function Responder(res, ctx, flowDynamic, state) {
     let nuevaRespuesta = res.respuesta.trim();
 
     // 🔴🔴🔴 LIMPIEZA DE MARCADORES INTERNOS (emoji + clave + texto extra) 🔴🔴🔴
-nuevaRespuesta = nuevaRespuesta.replace(/🧩[A-Za-z0-9_]+🧩|\[.*?: [^\]]+\]/gi, '').trim();
+    nuevaRespuesta = nuevaRespuesta.replace(/🧩[A-Za-z0-9_]+🧩|\[.*?: [^\]]+\]/gi, '').trim();
 
     // Opcional: Log para ver si hubo marcadores eliminados
     if (nuevaRespuesta !== res.respuesta.trim()) {
       console.log('⚠️ [FILTRO] Se eliminó un marcador interno de la respuesta IA.');
     }
 
-    // (Convierte a minúsculas para el control de respuestas repetidas)
     const nuevaRespuestaComparar = nuevaRespuesta.toLowerCase();
 
     if (nuevaRespuestaComparar && nuevaRespuestaComparar === yaRespondido) {
@@ -593,7 +554,6 @@ nuevaRespuesta = nuevaRespuesta.replace(/🧩[A-Za-z0-9_]+🧩|\[.*?: [^\]]+\]/g
     actualizarHistorialConversacion(nuevaRespuesta, 'bot', state);
 
     console.log('⏱️ [DEBUG] Fin de envío de mensaje a', ctx.from.split('@')[0], 'Tiempo:', Date.now() - startTime, 'ms');
-    // Solo UNA llamada a flowDynamic, problema resuelto.
     return;
   }
 }
@@ -668,7 +628,7 @@ async function esAclaracionSobreUltimaSugerencia(texto = '', state) {
   const nombresProductos = ultimaSugerencia.map(p => p.NOMBRE).slice(0, 3).join('\n')
 
   const prompt = `
-Eres un asistente conversacional de ventas para una tienda online. 
+Eres un asistente conversacional de ventas para una tienda online.
 Tu tarea es únicamente responder si la siguiente consulta del cliente es una continuación o aclaración relacionada a los siguientes productos que se le ofrecieron anteriormente.
 
 Productos sugeridos anteriormente:
@@ -695,7 +655,7 @@ Responde solamente este JSON:
 
 async function esProductoSimilarPorIA(nombreProducto, textoConsulta) {
   const prompt = `
-Eres un asistente experto en e-commerce. 
+Eres un asistente experto en e-commerce.
 Tu tarea es determinar si las dos frases siguientes hacen referencia al mismo producto, teniendo en cuenta posibles errores de ortografía, sinónimos, traducciones o abreviaciones.
 
 Frase 1 (producto del catálogo):
@@ -728,121 +688,4 @@ function encontroProductoExacto(productos, nombreBuscado) {
     const porcentaje = coincidencias / nombreLimpio.length
     return porcentaje >= 0.7
   })
-}
-
-// Corrigiendo el error de tipeo 'nuevoPso' por 'nuevoPaso'
-// ✅ REEMPLAZA TU FUNCIÓN manejarRespuestaIA ACTUAL POR ESTA VERSIÓN FINAL Y CORREGIDA
-async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-    let respuestaActual = res;
-    let intentos = 0;
-    const maxIntentos = 2; // Solo permitimos 1 reconsulta máxima para evitar loops.
-
-    console.log('🔄 [MANEJAR_IA] Iniciando ciclo de procesamiento de respuesta...');
-
-    // Guarda el paso y secciones activas antes de procesar marcadores
-    let anteriorPaso = state.get('pasoFlujoActual');
-    let anterioresSecciones = JSON.stringify(state.get('seccionesActivas') || []);
-
-    while (intentos < maxIntentos) {
-        // 1. Procesamos marcadores: actualiza el STATE y nos da la respuesta LIMPIA.
-        respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
-        const textoRespuestaLimpia = (respuestaActual.respuesta || '').trim();
-
-        // Detecta si hubo cambio de paso o de secciones activas tras procesar marcadores
-        let nuevoPaso = state.get('pasoFlujoActual');
-        let nuevasSecciones = JSON.stringify(state.get('seccionesActivas') || []);
-        // CORRECCIÓN 1: Se arregló el error de tipeo 'nuevoPso' por 'nuevoPaso'
-        let huboCambioDePaso = (anteriorPaso !== nuevoPaso);
-        let huboCambioDeSeccion = (anterioresSecciones !== nuevasSecciones);
-
-        if (huboCambioDePaso || huboCambioDeSeccion) {
-            // Actualizamos los snapshots para evitar dobles saltos en bucle
-            anteriorPaso = nuevoPaso;
-            anterioresSecciones = nuevasSecciones;
-
-            // Reconstruimos el prompt con el contexto actualizado
-            const bloques = ARCHIVO.PROMPT_BLOQUES;
-            const promptSistema = armarPromptOptimizado(state, bloques);
-            const contactoCache = getContactoByTelefono(ctx.from);
-            const estado = {
-                esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
-                contacto: contactoCache || {}
-            };
-
-            // Hacemos SOLO UNA reconsulta a la IA, pero ya en el paso correcto.
-            respuestaActual = await EnviarIA(txt, promptSistema, {
-                ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
-            }, estado);
-
-            // Procesamos marcadores de la segunda respuesta, por si hay doble salto (muy raro, pero seguro).
-            respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
-
-            intentos++;
-            continue; // Solo permitimos una reconsulta máxima
-        }
-
-        // Si la respuesta está vacía (solo venía marcador), respondemos DIRECTO con el contenido del paso/sección activa.
-        if (!textoRespuestaLimpia) {
-            const bloques = ARCHIVO.PROMPT_BLOQUES;
-            const seccionesActivas = state.get('seccionesActivas') || [];
-            let respuestaFinal = '';
-
-            if (seccionesActivas.length) {
-                seccionesActivas.forEach(sec => {
-                    const secNorm = normalizarClave(sec);
-                    if (bloques[secNorm]) {
-                        respuestaFinal += (bloques[secNorm] + '\n\n');
-                    }
-                });
-            }
-            if (!respuestaFinal) {
-                const pasoActualNum = state.get('pasoFlujoActual') ?? 0;
-                // CORRECCIÓN 2: Se ajustó para buscar el paso por su número en la lista, no por un nombre.
-                if (bloques.PASOS_FLUJO && bloques.PASOS_FLUJO[pasoActualNum]) {
-                    respuestaFinal = bloques.PASOS_FLUJO[pasoActualNum];
-                }
-            }
-            if (!respuestaFinal) {
-                respuestaFinal = 'No se encontró información específica para tu solicitud. ¿Puedes aclararme lo que necesitas?';
-            }
-            await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
-            return;
-        }
-
-        // Si llegamos aquí, tenemos una respuesta real para el usuario.
-        console.log('✅ [MANEJAR_IA] Respuesta final obtenida:', textoRespuestaLimpia);
-        break;
-    }
-
-    if (intentos >= maxIntentos) {
-        console.error('❌ [ERROR] Se alcanzó el número máximo de re-consultas a la IA. El bot podría estar en un bucle. Finalizando flujo.');
-        await flowDynamic('Lo siento, parece que he tenido un problema procesando tu solicitud. Por favor, intenta de nuevo en un momento.');
-        return;
-    }
-
-    // Procesamos acciones especiales (mostrar productos, detalles, ayuda, etc.)
-    const respuestaIA = respuestaActual.respuesta?.toLowerCase?.() || '';
-    console.log('🧠 [MANEJAR_IA] Analizando tokens de acción en respuesta final...');
-
-    if (respuestaIA.includes('🧩mostrarproductos')) {
-        console.log('➡️ [ACCIÓN] Detectado token para mostrar productos.');
-        await state.update({ ultimaConsulta: txt });
-        return gotoFlow(flowProductos);
-    }
-    if (respuestaIA.includes('🧩mostrardetalles')) {
-        console.log('➡️ [ACCIÓN] Detectado token para mostrar detalles.');
-        return gotoFlow(flowDetallesProducto);
-    }
-    if (respuestaIA.includes('🧩solicitarayuda')) {
-        console.log('➡️ [ACCIÓN] Detectado token para solicitar ayuda.');
-        return gotoFlow(flowProductos);
-    }
-
-    await Responder(respuestaActual, ctx, flowDynamic, state);
-
-    if (respuestaActual.respuesta?.includes('⏭️siguiente paso')) {
-        let pasoActual = state.get('pasoFlujoActual') ?? 0;
-        await state.update({ pasoFlujoActual: pasoActual + 1, seccionesActivas: [] });
-        console.log('➡️ [FLUJO] Avanzando al siguiente paso del flujo:', pasoActual + 2);
-    }
 }
