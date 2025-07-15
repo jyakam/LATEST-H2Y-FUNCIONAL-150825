@@ -9,7 +9,7 @@ WORKDIR /app
 
 # Copiar archivos de configuración y dependencias
 COPY package.json ./
-RUN pnpm install --frozen-lockfile --ignore-scripts
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
 
 # Copiar el resto del código
 COPY . .
