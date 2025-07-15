@@ -407,75 +407,57 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     return tools.fallBack();
  });
 
-// ✅✅✅ INICIO: Lógica Definitiva Anti-Bucle y Anti-Desfase ✅✅✅
+// ✅✅✅ INICIO: VERSIÓN 3 - LÓGICA DE RE-CONSULTA CONTROLADA ✅✅✅
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-    console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta IA...');
+    console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta (Lógica de Re-consulta Controlada)...');
 
-    // Guardamos el estado ANTES de cualquier cambio para poder detectar si hubo una transición.
+    // Guardamos el estado ANTES de cualquier cambio.
     const pasoAnterior = state.get('pasoFlujoActual');
 
-    // 1. Procesamos la respuesta de la IA. Esta función interna hace dos cosas:
-    //    a) Revisa si hay marcadores y actualiza el 'state' (el paso del flujo).
-    //    b) Devuelve la respuesta de la IA ya sin los marcadores.
-    const respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
-    const textoRespuestaLimpia = (respuestaProcesada.respuesta || '').trim();
+    // 1. Procesamos la respuesta de la IA para actualizar el estado (activar marcadores).
+    // La respuesta de texto que viene aquí la vamos a ignorar si hay cambio de paso.
+    await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
 
     // Guardamos el estado DESPUÉS de procesar los marcadores.
     const pasoNuevo = state.get('pasoFlujoActual');
-
-    // 2. Verificamos si hubo un cambio de paso. Esta es la clave.
     const huboCambioDePaso = (pasoAnterior !== pasoNuevo);
 
-    // --- LÓGICA CENTRAL ANTI-DESFASE Y ANTI-BUCLE ---
+    // 2. Lógica Central: ¿Hubo un cambio de paso?
     if (huboCambioDePaso) {
-        console.log(`➡️ [TRANSICIÓN] Hubo cambio de paso: de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}.`);
+        // ¡SÍ HUBO CAMBIO DE PASO! Esto requiere una re-consulta para dar la respuesta correcta.
+        console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
 
-        // Caso A: La IA pidió cambiar de paso PERO TAMBIÉN envió un texto de transición.
-        // Ejemplo: "Entendido, ahora te explico los tratamientos 🧩PASO_2🧩"
-        if (textoRespuestaLimpia) {
-            console.log('    [ACCIÓN] La IA envió texto de transición. Se enviará y se esperará al cliente.');
-            // Enviamos solo el texto de transición y detenemos el flujo aquí.
-            // Esto evita el bucle, ya que no volvemos a consultar a la IA.
-            await Responder({ respuesta: textoRespuestaLimpia, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
-            return;
-        }
-        // Caso B: La IA pidió cambiar de paso pero NO envió texto (solo el marcador).
-        // Ejemplo: "🧩PASO_2🧩"
-        else {
-            console.log('    [ACCIÓN] La IA solo pidió cambio de paso. Se responderá con el contenido del nuevo paso.');
-            
-            // Buscamos el contenido del nuevo paso en la Base de Conocimiento.
-            const bloques = ARCHIVO.PROMPT_BLOQUES;
-            const pasoActualNum = state.get('pasoFlujoActual') ?? 0;
-            let respuestaFinal = '';
+        // Armamos el nuevo prompt con el contexto del PASO recién activado.
+        const bloques = ARCHIVO.PROMPT_BLOQUES;
+        const nuevoPromptSistema = armarPromptOptimizado(state, bloques);
+        const contactoCache = getContactoByTelefono(ctx.from);
+        const estado = {
+            esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
+            contacto: contactoCache || {}
+        };
+        
+        console.log('    [ACCIÓN] Realizando la re-consulta controlada a la IA...');
+        // ESTA ES LA RE-CONSULTA CONTROLADA Y NECESARIA.
+        // Se vuelve a enviar el mensaje ORIGINAL del cliente (txt), pero con el NUEVO prompt.
+        const respuestaFinal = await EnviarIA(txt, nuevoPromptSistema, {
+            ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
+        }, estado);
 
-            if (bloques.PASOS_FLUJO && bloques.PASOS_FLUJO[pasoActualNum]) {
-                respuestaFinal = bloques.PASOS_FLUJO[pasoActualNum];
-            } else {
-                respuestaFinal = 'Entendido, pero no encontré qué decir a continuación. ¿Puedes continuar?';
-            }
-            
-            // Enviamos el contenido del nuevo paso directamente.
-            // Esto soluciona el "desfase de 1 turno".
-            await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
-            return;
-        }
+        // Enviamos la respuesta obtenida de la SEGUNDA consulta.
+        // Ya no se procesan más marcadores para evitar bucles. Simplemente se envía.
+        await Responder(respuestaFinal, ctx, flowDynamic, state);
+        return;
+
+    } else {
+        // ¡NO HUBO CAMBIO DE PASO! La IA dio una respuesta normal sin activar marcadores.
+        console.log('✅ [MANEJAR_IA] No hubo cambio de paso. Enviando respuesta directa de la IA.');
+        
+        // Simplemente enviamos la respuesta original que nos dio la IA.
+        await Responder(res, ctx, flowDynamic, state);
+        return;
     }
-
-    // 3. Si NO hubo cambio de paso, simplemente enviamos la respuesta normal de la IA.
-    console.log('✅ [MANEJAR_IA] No hubo cambio de paso. Enviando respuesta directa.');
-    
-    // Procesamos acciones especiales que no son de flujo (mostrar productos, etc.)
-    const respuestaIA = respuestaProcesada.respuesta?.toLowerCase?.() || '';
-    if (respuestaIA.includes('🧩mostrarproductos')) {
-        return gotoFlow(flowProductos);
-    }
-    // ... (otras acciones especiales si las hubiera) ...
-
-    // Enviamos la respuesta final al usuario.
-    await Responder(respuestaProcesada, ctx, flowDynamic, state);
 }
-// ✅✅✅ FIN: Lógica Definitiva Anti-Bucle y Anti-Desfase ✅✅✅
+// ✅✅✅ FIN: VERSIÓN 3 - LÓGICA DE RE-CONSULTA CONTROLADA ✅✅✅
 
 async function Responder(res, ctx, flowDynamic, state) {
   if (res.tipo === ENUM_IA_RESPUESTAS.TEXTO && res.respuesta) {
