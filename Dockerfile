@@ -35,6 +35,5 @@ EXPOSE 3001
 # Variable de entorno
 ENV RUNNING_IN_DOCKER=true
 
-
 CMD ["pm2-runtime", "start", "app.js", "--cron", "0 3 * * *"]
 #CMD ["npm", "start"]
