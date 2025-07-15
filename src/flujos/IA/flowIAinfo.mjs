@@ -462,7 +462,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
     // Detecta si hubo cambio de paso o de secciones activas tras procesar marcadores
     let nuevoPaso = state.get('pasoFlujoActual');
     let nuevasSecciones = JSON.stringify(state.get('seccionesActivas') || []);
-    let huboCambioDePaso = (anteriorPaso !== nuevoPso);
+    let huboCambioDePaso = (anteriorPaso !== nuevoPaso);
     let huboCambioDeSeccion = (anterioresSecciones !== nuevasSecciones);
 
     if (huboCambioDePaso || huboCambioDeSeccion) {
