@@ -407,86 +407,75 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     return tools.fallBack();
  });
 
-// ✅✅✅ INICIO DEL BLOQUE CORREGIDO PARA EVITAR BUCLES ✅✅✅
+// ✅✅✅ INICIO: Lógica Definitiva Anti-Bucle y Anti-Desfase ✅✅✅
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-    console.log('🔄 [MANEJAR_IA] Procesando respuesta de la IA...');
+    console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta IA...');
 
-    // 1. Procesamos marcadores: esta función actualiza el STATE (pasoFlujoActual o seccionesActivas)
-    // y devuelve la respuesta de la IA sin los marcadores.
+    // Guardamos el estado ANTES de cualquier cambio para poder detectar si hubo una transición.
+    const pasoAnterior = state.get('pasoFlujoActual');
+
+    // 1. Procesamos la respuesta de la IA. Esta función interna hace dos cosas:
+    //    a) Revisa si hay marcadores y actualiza el 'state' (el paso del flujo).
+    //    b) Devuelve la respuesta de la IA ya sin los marcadores.
     const respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
     const textoRespuestaLimpia = (respuestaProcesada.respuesta || '').trim();
 
-    // 2. Si la respuesta de la IA, después de quitarle los marcadores, está vacía,
-    // significa que la IA solo pidió un cambio de contexto (ej. 🧩PASO_2🧩).
-    // En este caso, respondemos directamente con el contenido del nuevo paso o sección.
-    if (!textoRespuestaLimpia) {
-        console.log(' informational [MANEJAR_IA] La respuesta de la IA solo contenía un marcador. Respondiendo con el nuevo bloque de contexto.');
-        
-        const bloques = ARCHIVO.PROMPT_BLOQUES;
-        const seccionesActivas = state.get('seccionesActivas') || [];
-        let respuestaFinal = '';
+    // Guardamos el estado DESPUÉS de procesar los marcadores.
+    const pasoNuevo = state.get('pasoFlujoActual');
 
-        // Priorizamos responder con la sección activa si existe
-        if (seccionesActivas.length > 0) {
-            seccionesActivas.forEach(sec => {
-                const secNorm = normalizarClave(sec);
-                if (bloques[secNorm]) {
-                    respuestaFinal += (bloques[secNorm] + '\n\n');
-                }
-            });
+    // 2. Verificamos si hubo un cambio de paso. Esta es la clave.
+    const huboCambioDePaso = (pasoAnterior !== pasoNuevo);
+
+    // --- LÓGICA CENTRAL ANTI-DESFASE Y ANTI-BUCLE ---
+    if (huboCambioDePaso) {
+        console.log(`➡️ [TRANSICIÓN] Hubo cambio de paso: de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}.`);
+
+        // Caso A: La IA pidió cambiar de paso PERO TAMBIÉN envió un texto de transición.
+        // Ejemplo: "Entendido, ahora te explico los tratamientos 🧩PASO_2🧩"
+        if (textoRespuestaLimpia) {
+            console.log('    [ACCIÓN] La IA envió texto de transición. Se enviará y se esperará al cliente.');
+            // Enviamos solo el texto de transición y detenemos el flujo aquí.
+            // Esto evita el bucle, ya que no volvemos a consultar a la IA.
+            await Responder({ respuesta: textoRespuestaLimpia, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
+            return;
         }
-
-        // Si no hay sección activa, respondemos con el paso actual del flujo
-        if (!respuestaFinal) {
+        // Caso B: La IA pidió cambiar de paso pero NO envió texto (solo el marcador).
+        // Ejemplo: "🧩PASO_2🧩"
+        else {
+            console.log('    [ACCIÓN] La IA solo pidió cambio de paso. Se responderá con el contenido del nuevo paso.');
+            
+            // Buscamos el contenido del nuevo paso en la Base de Conocimiento.
+            const bloques = ARCHIVO.PROMPT_BLOQUES;
             const pasoActualNum = state.get('pasoFlujoActual') ?? 0;
+            let respuestaFinal = '';
+
             if (bloques.PASOS_FLUJO && bloques.PASOS_FLUJO[pasoActualNum]) {
                 respuestaFinal = bloques.PASOS_FLUJO[pasoActualNum];
+            } else {
+                respuestaFinal = 'Entendido, pero no encontré qué decir a continuación. ¿Puedes continuar?';
             }
+            
+            // Enviamos el contenido del nuevo paso directamente.
+            // Esto soluciona el "desfase de 1 turno".
+            await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
+            return;
         }
-
-        // Si por alguna razón no se encuentra contenido, enviamos un mensaje de fallback.
-        if (!respuestaFinal) {
-            respuestaFinal = 'No se encontró información específica para tu solicitud. ¿Puedes aclararme lo que necesitas?';
-        }
-
-        // Enviamos la respuesta con el contenido del bloque y terminamos el turno.
-        await Responder({ respuesta: respuestaFinal, tipo: ENUM_IA_RESPUESTAS.TEXTO }, ctx, flowDynamic, state);
-        return; // IMPORTANTE: Finaliza la ejecución para esperar al cliente.
     }
 
-    // 3. Si la respuesta NO estaba vacía, significa que la IA envió texto para el cliente.
-    // Simplemente enviamos esa respuesta.
-    console.log('✅ [MANEJAR_IA] Respuesta final obtenida para el usuario:', textoRespuestaLimpia);
+    // 3. Si NO hubo cambio de paso, simplemente enviamos la respuesta normal de la IA.
+    console.log('✅ [MANEJAR_IA] No hubo cambio de paso. Enviando respuesta directa.');
     
-    // Procesamos acciones especiales (mostrar productos, detalles, etc.)
+    // Procesamos acciones especiales que no son de flujo (mostrar productos, etc.)
     const respuestaIA = respuestaProcesada.respuesta?.toLowerCase?.() || '';
-    console.log('🧠 [MANEJAR_IA] Analizando tokens de acción en respuesta final...');
-
     if (respuestaIA.includes('🧩mostrarproductos')) {
-        console.log('➡️ [ACCIÓN] Detectado token para mostrar productos.');
-        await state.update({ ultimaConsulta: txt });
         return gotoFlow(flowProductos);
     }
-    if (respuestaIA.includes('🧩mostrardetalles')) {
-        console.log('➡️ [ACCIÓN] Detectado token para mostrar detalles.');
-        return gotoFlow(flowDetallesProducto);
-    }
-    if (respuestaIA.includes('🧩solicitarayuda')) {
-        console.log('➡️ [ACCIÓN] Detectado token para solicitar ayuda.');
-        return gotoFlow(flowProductos); // Considera si este debe ir a otro flujo.
-    }
+    // ... (otras acciones especiales si las hubiera) ...
 
-    // Enviamos la respuesta final (que ya no tiene marcadores) al usuario.
+    // Enviamos la respuesta final al usuario.
     await Responder(respuestaProcesada, ctx, flowDynamic, state);
-
-    // Esta lógica es opcional, pero puede ser útil si quieres forzar un avance de paso con una palabra clave.
-    if (respuestaProcesada.respuesta?.includes('⏭️siguiente paso')) {
-        let pasoActual = state.get('pasoFlujoActual') ?? 0;
-        await state.update({ pasoFlujoActual: pasoActual + 1, seccionesActivas: [] }); // Limpiamos secciones al avanzar
-        console.log('➡️ [FLUJO] Avanzando al siguiente paso del flujo por palabra clave:', pasoActual + 2);
-    }
 }
-// ✅✅✅ FIN DEL BLOQUE CORREGIDO ✅✅✅
+// ✅✅✅ FIN: Lógica Definitiva Anti-Bucle y Anti-Desfase ✅✅✅
 
 async function Responder(res, ctx, flowDynamic, state) {
   if (res.tipo === ENUM_IA_RESPUESTAS.TEXTO && res.respuesta) {
