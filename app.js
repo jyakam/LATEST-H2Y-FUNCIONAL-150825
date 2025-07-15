@@ -1,6 +1,8 @@
 // app.js
-import { createBot, createProvider, createFlow, MemoryDB } from '@builderbot/bot'
+import { createBot, createProvider, createFlow } from '@builderbot/bot'
 import { BaileysProvider } from '@builderbot/provider-baileys'
+import { RedisDB } from '@builderbot/database-redis'
+import { createClient } from 'redis'
 import { Inicializar, BOT } from './src/config/bot.mjs'
 
 // 🔧 MODULOS DEL SISTEMA
@@ -38,7 +40,14 @@ const FLUJOS_ENTRADA = [
 // 🚀 ARRANQUE DE BOT
 const main = async () => {
   console.log('🔧 Iniciando main()')
-  const adapterDB = new MemoryDB()
+
+  // === CAMBIO PRINCIPAL: REDIS COMO BASE DE DATOS DE SESIÓN ===
+  const redisClient = createClient({
+    url: process.env.REDIS_URL || 'redis://localhost:6379'
+  })
+  await redisClient.connect()
+  const adapterDB = new RedisDB(redisClient)
+
   const adapterFlow = createFlow(FLUJOS_ENTRADA)
   const adapterProvider = createProvider(BaileysProvider)
 
@@ -52,13 +61,14 @@ const main = async () => {
   PROVEEDOR.name = ENUNPROV.BAILEYS
   PROVEEDOR.prov = adapterProvider
 
-await Inicializar()
+  await Inicializar()
   console.log('🚦 [app.js] BOT.PRODUCTOS después de Inicializar:', BOT.PRODUCTOS)
-   console.log('🤖 Creando bot')
+  console.log('🤖 Creando bot')
+
   const bot = await createBot({
     flow: adapterFlow,
     provider: adapterProvider,
-    database: adapterDB
+    database: adapterDB // <--- YA USA REDIS AQUÍ
   })
 
   APIREST(adapterProvider)
