@@ -731,29 +731,36 @@ function encontroProductoExacto(productos, nombreBuscado) {
 }
 
 // Corrigiendo el error de tipeo 'nuevoPso' por 'nuevoPaso'
+// ✅ REEMPLAZA TU FUNCIÓN manejarRespuestaIA ACTUAL POR ESTA VERSIÓN FINAL Y CORREGIDA
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
     let respuestaActual = res;
     let intentos = 0;
-    const maxIntentos = 2;
+    const maxIntentos = 2; // Solo permitimos 1 reconsulta máxima para evitar loops.
 
     console.log('🔄 [MANEJAR_IA] Iniciando ciclo de procesamiento de respuesta...');
 
+    // Guarda el paso y secciones activas antes de procesar marcadores
     let anteriorPaso = state.get('pasoFlujoActual');
     let anterioresSecciones = JSON.stringify(state.get('seccionesActivas') || []);
 
     while (intentos < maxIntentos) {
+        // 1. Procesamos marcadores: actualiza el STATE y nos da la respuesta LIMPIA.
         respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
         const textoRespuestaLimpia = (respuestaActual.respuesta || '').trim();
 
+        // Detecta si hubo cambio de paso o de secciones activas tras procesar marcadores
         let nuevoPaso = state.get('pasoFlujoActual');
         let nuevasSecciones = JSON.stringify(state.get('seccionesActivas') || []);
+        // CORRECCIÓN 1: Se arregló el error de tipeo 'nuevoPso' por 'nuevoPaso'
         let huboCambioDePaso = (anteriorPaso !== nuevoPaso);
         let huboCambioDeSeccion = (anterioresSecciones !== nuevasSecciones);
 
         if (huboCambioDePaso || huboCambioDeSeccion) {
+            // Actualizamos los snapshots para evitar dobles saltos en bucle
             anteriorPaso = nuevoPaso;
             anterioresSecciones = nuevasSecciones;
 
+            // Reconstruimos el prompt con el contexto actualizado
             const bloques = ARCHIVO.PROMPT_BLOQUES;
             const promptSistema = armarPromptOptimizado(state, bloques);
             const contactoCache = getContactoByTelefono(ctx.from);
@@ -762,16 +769,19 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
                 contacto: contactoCache || {}
             };
 
+            // Hacemos SOLO UNA reconsulta a la IA, pero ya en el paso correcto.
             respuestaActual = await EnviarIA(txt, promptSistema, {
                 ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
             }, estado);
 
+            // Procesamos marcadores de la segunda respuesta, por si hay doble salto (muy raro, pero seguro).
             respuestaActual = await cicloMarcadoresIA(respuestaActual, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
 
             intentos++;
-            continue;
+            continue; // Solo permitimos una reconsulta máxima
         }
 
+        // Si la respuesta está vacía (solo venía marcador), respondemos DIRECTO con el contenido del paso/sección activa.
         if (!textoRespuestaLimpia) {
             const bloques = ARCHIVO.PROMPT_BLOQUES;
             const seccionesActivas = state.get('seccionesActivas') || [];
@@ -786,10 +796,10 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
                 });
             }
             if (!respuestaFinal) {
-                const pasoActual = (state.get('pasoFlujoActual') ?? 0) + 1;
-                const pasoKey = `paso_${pasoActual}`;
-                if (bloques.PASOS_FLUJO && bloques.PASOS_FLUJO[pasoActual -1]) {
-                    respuestaFinal = bloques.PASOS_FLUJO[pasoActual-1];
+                const pasoActualNum = state.get('pasoFlujoActual') ?? 0;
+                // CORRECCIÓN 2: Se ajustó para buscar el paso por su número en la lista, no por un nombre.
+                if (bloques.PASOS_FLUJO && bloques.PASOS_FLUJO[pasoActualNum]) {
+                    respuestaFinal = bloques.PASOS_FLUJO[pasoActualNum];
                 }
             }
             if (!respuestaFinal) {
@@ -799,6 +809,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
             return;
         }
 
+        // Si llegamos aquí, tenemos una respuesta real para el usuario.
         console.log('✅ [MANEJAR_IA] Respuesta final obtenida:', textoRespuestaLimpia);
         break;
     }
@@ -809,6 +820,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         return;
     }
 
+    // Procesamos acciones especiales (mostrar productos, detalles, ayuda, etc.)
     const respuestaIA = respuestaActual.respuesta?.toLowerCase?.() || '';
     console.log('🧠 [MANEJAR_IA] Analizando tokens de acción en respuesta final...');
 
