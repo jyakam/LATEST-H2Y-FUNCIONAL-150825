@@ -57,7 +57,7 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
       request.function_call = 'auto'
     }
 
-    // ✅✅✅ INICIO: BLOQUE DE LOGS CORREGIDO Y UNIFICADO ✅✅✅
+    // ✅✅✅ INICIO: BLOQUE DE LOGS ROBUSTO (VERSIÓN FINAL) ✅✅✅
     console.log('================= [PROMPT ENVIADO A OPENAI] =================');
     console.log(`[DEBUG] Historial final con ${historialFinal.length} mensajes.`);
     
@@ -66,17 +66,19 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
         let preview = '';
         let contentLength = 0;
 
-        // Verificamos si el contenido es texto antes de usar substring
+        // Verificamos si el contenido es texto, se procesa.
         if (typeof m.content === 'string') {
             preview = m.content.substring(0, 100).replace(/\n/g, ' ');
             contentLength = m.content.length;
         } 
-        // Si es una lista (Array), es un mensaje de imagen y lo manejamos diferente
+        // Si es una lista (Array), es un mensaje de imagen, se busca la parte de texto de forma segura.
         else if (Array.isArray(m.content)) {
             preview = '[Mensaje con imagen]';
-            // Sumamos la longitud del texto que acompaña a la imagen, si existe.
             const textPart = m.content.find(p => p.type === 'text');
-            if(textPart) contentLength = textPart.content.length;
+            // IMPORTANTE: Se verifica la propiedad correcta ".text" en lugar de ".content".
+            if (textPart && typeof textPart.text === 'string') {
+                contentLength = textPart.text.length;
+            }
         }
 
         totalChars += contentLength;
@@ -86,8 +88,7 @@ export async function EnviarTextoOpenAI(msj, userId, guion, estado, llamada = nu
 
     console.log('Longitud total del prompt (caracteres):', totalChars);
     console.log('===========================================================');
-    // ✅✅✅ FIN: BLOQUE DE LOGS CORREGIDO Y UNIFICADO ✅✅✅
-
+    // ✅✅✅ FIN: BLOQUE DE LOGS ROBUSTO (VERSIÓN FINAL) ✅✅✅
 
     const completion = await openai.chat.completions.create(request)
 
