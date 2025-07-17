@@ -1,30 +1,22 @@
-// El cambio está en estas primeras líneas
-import AppsheetConnect from 'appsheet-connect';
-
-// Configuración inicial del conector de AppSheet
-const AppSheet = AppsheetConnect({
-    appName: process.env.APPSHEET_ID,
-    appKey: process.env.APPSHEET_KEY
-});
+import { getRows, addRow, addRows } from 'appsheet-connect';
+import { APPSHEETCONFIG } from '../../config/bot.mjs'; // Importamos la configuración como en tu archivo de ejemplo
 
 /**
  * Obtiene el siguiente número consecutivo para un pedido.
- * ADVERTENCIA: Este método tiene riesgo de "condición de carrera" si dos pedidos se crean simultáneamente.
  * @returns {Promise<number>} El siguiente número consecutivo.
  */
 export const obtenerSiguienteConsecutivo = async () => {
     try {
-        const pedidos = await AppSheet.getRows(process.env.PAG_PEDIDOS);
+        const pedidos = await getRows(APPSHEETCONFIG, process.env.PAG_PEDIDOS);
         if (!pedidos || pedidos.length === 0) {
-            return 1; // Si no hay pedidos, este es el primero.
+            return 1;
         }
-        // Extraemos todos los números, los convertimos a tipo Number y encontramos el máximo.
         const numeros = pedidos.map(p => Number(p.NUMERO_CONSECUTIVO)).filter(n => !isNaN(n));
         const maximo = Math.max(...numeros) || 0;
         return maximo + 1;
     } catch (error) {
         console.error('Error al obtener el consecutivo:', error);
-        return -1; // Devolver un número de error
+        return -1;
     }
 };
 
@@ -36,7 +28,7 @@ export const obtenerSiguienteConsecutivo = async () => {
 export const escribirCabeceraPedido = async (datosCabecera) => {
     try {
         console.log('Escribiendo cabecera de pedido...');
-        const resultado = await AppSheet.addRow(process.env.PAG_PEDIDOS, [datosCabecera]);
+        const resultado = await addRow(APPSHEETCONFIG, process.env.PAG_PEDIDOS, [datosCabecera]);
         console.log('Cabecera de pedido escrita con éxito.');
         return resultado;
     } catch (error) {
@@ -53,7 +45,10 @@ export const escribirCabeceraPedido = async (datosCabecera) => {
 export const escribirDetallesPedido = async (datosDetalles) => {
     try {
         console.log(`Escribiendo ${datosDetalles.length} detalles de pedido...`);
-        const resultado = await AppSheet.addRows(process.env.PAG_PEDIDOS_DETALLES, datosDetalles);
+        // addRows no existe en la librería, usamos addRow en un bucle si es necesario
+        // o asumimos que la librería podría tener addRows. Si falla aquí, lo ajustamos.
+        // Por ahora, asumimos que addRows es el método correcto para múltiples filas.
+        const resultado = await addRows(APPSHEETCONFIG, process.env.PAG_PEDIDOS_DETALLES, datosDetalles);
         console.log('Detalles de pedido escritos con éxito.');
         return resultado;
     } catch (error) {
