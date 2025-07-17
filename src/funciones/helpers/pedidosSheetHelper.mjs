@@ -1,8 +1,8 @@
-import appsheet from 'appsheet-connect'; // Asumiendo que usas esta librería para conectar
+// El cambio está en estas primeras líneas
+import AppsheetConnect from 'appsheet-connect';
 
 // Configuración inicial del conector de AppSheet
-// Esto debería estar en un archivo de configuración central, pero lo ponemos aquí como referencia
-const AppSheet = appsheet({
+const AppSheet = AppsheetConnect({
     appName: process.env.APPSHEET_ID,
     appKey: process.env.APPSHEET_KEY
 });
