@@ -29,16 +29,10 @@ import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA 
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
 
-// --- INICIO NUEVA FUNCIÓN PARA MANEJAR CARRITO ---
-/**
- * Detecta la señal 🧩AGREGAR_CARRITO🧩 y extrae los detalles del producto.
- * @param {string} respuestaIA - La respuesta completa de la IA.
- * @param {object} state - El estado actual del bot.
- * @param {object} tools - El conjunto de herramientas del bot (ctx, flowDynamic, etc.).
- */
+// --- VERSIÓN FINAL CON LIMPIEZA DE JSON ---
 async function agregarProductoAlCarrito(respuestaIA, state, tools) {
     if (!respuestaIA || !respuestaIA.includes('🧩AGREGAR_CARRITO🧩')) {
-        return; // No hay señal, no hacemos nada.
+        return; 
     }
 
     console.log('🛒 [CARRITO] Señal 🧩AGREGAR_CARRITO🧩 detectada. Proceso interno iniciado.');
@@ -64,7 +58,13 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
     const resultadoExtraccion = await EnviarIA(promptExtractor, '', tools, {}); 
     
     try {
-        const productoJSON = JSON.parse(resultadoExtraccion.respuesta);
+        // --- INICIO DE LA CORRECCIÓN ---
+        // 1. Limpiamos la respuesta de la IA para quitarle el formato Markdown ```json
+        const jsonLimpio = resultadoExtraccion.respuesta.replace(/```json\n|```/g, '').trim();
+
+        // 2. Usamos la variable limpia para el parseo
+        const productoJSON = JSON.parse(jsonLimpio);
+        // --- FIN DE LA CORRECCIÓN ---
 
         if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio && productoJSON.sku && productoJSON.categoria) {
             const carrito = state.get('carrito') || [];
