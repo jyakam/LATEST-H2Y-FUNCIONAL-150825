@@ -13,52 +13,78 @@ export const crearPedidoDesdeState = async (state, ctx) => {
     console.log('Iniciando proceso de creación de pedido...');
     const carrito = state.get('carrito');
 
-    // 1. Verificar si hay algo en el carrito
     if (!carrito || carrito.length === 0) {
         console.log('El carrito está vacío. No se creará ningún pedido.');
         return;
     }
 
     try {
-        // 2. Obtener el número consecutivo para el nuevo pedido
         const numeroConsecutivo = await obtenerSiguienteConsecutivo();
         if (numeroConsecutivo === -1) {
             throw new Error('No se pudo obtener el número consecutivo.');
         }
 
-        const idPedido = `PED-${numeroConsecutivo.toString().padStart(5, '0')}`; // ej. PED-00123
-        const numeroPedidoVisible = `PED-${numeroConsecutivo.toString().padStart(3, '0')}`; // ej. PED-123
+        // Generamos los IDs y calculamos totales
+        const idUnico = `PED-${Date.now()}`;
+        const numeroPedidoVisible = `PED-${numeroConsecutivo.toString().padStart(3, '0')}`;
+        const subtotal = carrito.reduce((acc, item) => acc + (item.cantidad * item.precio), 0);
+        const valorTotal = subtotal; // TODO: Sumar envío, impuestos, etc. más adelante
 
-        // 3. Preparar la información de la cabecera del pedido
-        // TODO: En un futuro, obtener los datos del cliente de la tabla CONTACTOS.
-        // Por ahora, usamos datos básicos.
+        // Preparamos la información COMPLETA de la cabecera del pedido
         const datosCabecera = {
-            ID_PEDIDO: idPedido,
-            FECHA_PEDIDO: new Date().toLocaleDateString('es-CO'), // Formato dd/mm/yyyy
-            HORA_PEDIDO: new Date().toLocaleTimeString('es-CO'), // Formato hh:mm:ss
+            ID_PEDIDO: idUnico,
+            FECHA_PEDIDO: new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' }),
+            HORA_PEDIDO: new Date().toLocaleTimeString('es-CO', { timeZone: 'America/Bogota' }),
             TELEFONO_REGISTRADO: ctx.from,
-            NOMBRE_COMPLETO_CLIENTE: state.get('nombre_cliente') || ctx.pushName, // Usar nombre guardado o de WhatsApp
-            // ... Aquí irían los demás campos como DIRECCION, CIUDAD, etc., que se recolectarían en la conversación.
-            // Por ahora los dejamos vacíos.
-            ESTADO_PEDIDO: 'Nuevo',
+            // TODO: Extraer estos datos del historial o del state
+            NOMBRE_COMPLETO_CLIENTE: state.get('nombre_cliente') || ctx.pushName,
+            DIRECCION: state.get('direccion_cliente') || '',
+            DIRECCION_2: '',
+            CIUDAD: state.get('ciudad_cliente') || '',
+            DEPARTAMENTO_REGION_ESTADO: state.get('depto_cliente') || '',
+            CODIGO_POSTAL: '',
+            PAIS: 'Colombia',
+            EMAIL: state.get('email_cliente') || '',
+            TELEFONO: ctx.from,
+            SUBTOTAL: subtotal,
+            VALOR_ENVIO: 0,
+            IMPUESTOS: 0,
+            DESCUENTOS: 0,
+            VALOR__TOTAL: valorTotal,
+            FORMA_PAGO: state.get('forma_pago') || 'Por definir',
             ESTADO_PAGO: 'Pendiente de Pago',
+            SALDO_PENDIENTE: valorTotal,
+            TRANSPORTADORA: '',
+            GUIA_TRANSPORTE: '',
+            ESTADO_PEDIDO: 'Nuevo',
+            NOTAS_PEDIDO: '',
             NUMERO_CONSECUTIVO: numeroConsecutivo,
             NUMERO_PEDIDO_VISIBLE: numeroPedidoVisible,
         };
 
-        // 4. Preparar los detalles del pedido (los productos del carrito)
-        const datosDetalles = carrito.map(item => ({
-            ID_DETALLE: `DET-${Date.now()}-${Math.random()}`, // Un ID único simple para el detalle
-            ID_PEDIDO: idPedido, // El enlace a la cabecera del pedido
-            SKU: item.sku,
+        const datosDetalles = carrito.map((item, index) => ({
+            ID_DETALLE: `${idUnico}-DET-${index + 1}`,
+            ID_PEDIDO: idUnico,
+            SKU: item.sku || 'N/A',
             NOMBRE_PRODUCTO: item.nombre,
+            TIPO_PRODUCTO: item.tipo_producto || 'PRODUCTO',
+            OPCION_1_COLOR: item.opciones?.color || '',
+            OPCION_2_TALLA: item.opciones?.talla || '',
+            OPCION_3_TAMANO: item.opciones?.tamano || '',
+            OPCION_4_SABOR: item.opciones?.sabor || '',
             CANTIDAD: item.cantidad,
             PRECIO_UNITARIO: item.precio,
             TOTAL_PRODUCTOS: item.cantidad * item.precio,
-            // ... Aquí irían las opciones como color, talla, etc.
+            CATEGORIA: item.categoria || 'General',
+            NOTA_PRODUCTO: '',
         }));
+        
+        // --- INICIO DE LOS NUEVOS LOGS DE DEPURACIÓN ---
+        console.log('📦 [DEBUG PEDIDO] Paquete de CABECERA a enviar:', JSON.stringify(datosCabecera, null, 2));
+        console.log('📄 [DEBUG PEDIDO] Paquete de DETALLES a enviar:', JSON.stringify(datosDetalles, null, 2));
+        // --- FIN DE LOS NUEVOS LOGS DE DEPURACIÓN ---
 
-        // 5. Escribir todo en Google Sheets
+        // Escribimos en Google Sheets
         await escribirCabeceraPedido(datosCabecera);
         await escribirDetallesPedido(datosDetalles);
 
@@ -66,6 +92,5 @@ export const crearPedidoDesdeState = async (state, ctx) => {
 
     } catch (error) {
         console.error('Error mayor en el proceso de creación del pedido:', error);
-        // Aquí se podría enviar una notificación al administrador.
     }
 };
