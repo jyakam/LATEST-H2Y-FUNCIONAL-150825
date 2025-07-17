@@ -24,19 +24,18 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             throw new Error('No se pudo obtener el número consecutivo.');
         }
 
-        // Generamos los IDs y calculamos totales
         const idUnico = `PED-${Date.now()}`;
         const numeroPedidoVisible = `PED-${numeroConsecutivo.toString().padStart(3, '0')}`;
         const subtotal = carrito.reduce((acc, item) => acc + (item.cantidad * item.precio), 0);
-        const valorTotal = subtotal; // TODO: Sumar envío, impuestos, etc. más adelante
+        const valorTotal = subtotal;
 
-        // Preparamos la información COMPLETA de la cabecera del pedido
         const datosCabecera = {
             ID_PEDIDO: idUnico,
-            FECHA_PEDIDO: new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' }),
-            HORA_PEDIDO: new Date().toLocaleTimeString('es-CO', { timeZone: 'America/Bogota' }),
+            // --- LÍNEAS CORREGIDAS ---
+            FECHA_PEDIDO: new Date().toLocaleDateString('es-CO'),
+            HORA_PEDIDO: new Date().toLocaleTimeString('es-CO'),
+            // -------------------------
             TELEFONO_REGISTRADO: ctx.from,
-            // TODO: Extraer estos datos del historial o del state
             NOMBRE_COMPLETO_CLIENTE: state.get('nombre_cliente') || ctx.pushName,
             DIRECCION: state.get('direccion_cliente') || '',
             DIRECCION_2: '',
@@ -79,12 +78,9 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             NOTA_PRODUCTO: '',
         }));
         
-        // --- INICIO DE LOS NUEVOS LOGS DE DEPURACIÓN ---
         console.log('📦 [DEBUG PEDIDO] Paquete de CABECERA a enviar:', JSON.stringify(datosCabecera, null, 2));
         console.log('📄 [DEBUG PEDIDO] Paquete de DETALLES a enviar:', JSON.stringify(datosDetalles, null, 2));
-        // --- FIN DE LOS NUEVOS LOGS DE DEPURACIÓN ---
 
-        // Escribimos en Google Sheets
         await escribirCabeceraPedido(datosCabecera);
         await escribirDetallesPedido(datosDetalles);
 
