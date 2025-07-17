@@ -29,48 +29,46 @@ import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA 
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
 
-// --- INICIO NUEVA FUNCIÓN PARA MANEJAR CARRITO ---
+// --- NUEVA VERSIÓN SILENCIOSA DE LA FUNCIÓN ---
 /**
- * Busca en la respuesta de la IA el marcador para agregar productos al carrito,
- * los añade al estado y devuelve un mensaje de confirmación.
+ * Busca la señal 🧩AGREGAR_CARRITO🧩, extrae los detalles del producto
+ * de forma interna y los añade al estado. NO devuelve ningún mensaje.
  * @param {string} respuestaIA - La respuesta completa de la IA.
  * @param {object} state - El estado actual del bot.
- * @returns {string|null} Un mensaje de confirmación o null si no se añadió nada.
  */
 async function agregarProductoAlCarrito(respuestaIA, state) {
-    const regex = /\[AGREGAR_CARRITO:\s*({.*?})\]/g;
-    const coincidencias = [...respuestaIA.matchAll(regex)];
-
-    if (coincidencias.length === 0) {
-        return null; // No hay productos para añadir
+    if (!respuestaIA.includes('🧩AGREGAR_CARRITO🧩')) {
+        return; // No hay señal, no hacemos nada.
     }
 
-    const carrito = state.get('carrito') || [];
-    let productosAñadidosNombres = [];
+    console.log('🛒 [CARRITO] Señal 🧩AGREGAR_CARRITO🧩 detectada. Proceso interno iniciado.');
 
-    for (const match of coincidencias) {
-        try {
-            const productoJSON = JSON.parse(match[1]);
-            // Validaciones básicas del objeto
-            if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio) {
-                carrito.push(productoJSON);
-                productosAñadidosNombres.push(`${productoJSON.cantidad} x ${productoJSON.nombre}`);
-                console.log('🛒 [CARRITO] Producto añadido:', productoJSON);
-            }
-        } catch (e) {
-            console.error('❌ [CARRITO] Error parseando JSON del carrito:', match[1], e);
+    const textoParaExtraer = respuestaIA.replace(/🧩AGREGAR_CARRITO🧩/g, '').trim();
+    const promptExtractor = `
+      Eres un asistente experto en procesar datos. Del siguiente texto, extrae el nombre del producto, la cantidad y el precio unitario. Devuelve únicamente un objeto JSON válido con la estructura {"sku": "SKU_SI_LO_ENCUENTRAS_O_N/A", "nombre": "...", "cantidad": ..., "precio": ...}. El precio debe ser un número sin puntos, comas o símbolos. Texto a analizar:
+      "${textoParaExtraer}"
+    `;
+    
+    // Hacemos la llamada interna a la IA para la extracción
+    const resultadoExtraccion = await EnviarIA(promptExtractor, '', {}, {}); 
+    
+    try {
+        const productoJSON = JSON.parse(resultadoExtraccion.respuesta);
+
+        if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio) {
+            const carrito = state.get('carrito') || [];
+            carrito.push(productoJSON);
+            await state.update({ carrito });
+            console.log('🛒✅ [CARRITO] Producto añadido silenciosamente al estado:', productoJSON);
         }
+    } catch (e) {
+        console.error('❌ [CARRITO] Error parseando JSON extraído por la segunda IA:', resultadoExtraccion.respuesta, e);
     }
-
-    await state.update({ carrito });
-
-    if (productosAñadidosNombres.length > 0) {
-        return `✅ ¡Listo! He añadido a tu pedido: ${productosAñadidosNombres.join(', ')}. ¿Deseas algo más?`;
-    }
-
-    return null;
+    
+    // La función ahora termina aquí y no devuelve ningún mensaje.
+    return;
 }
-// --- FIN NUEVA FUNCIÓN PARA MANEJAR CARRITO ---
+// --- FIN DE LA NUEVA VERSIÓN ---
 
 // === BLOQUES DE AYUDA PARA EL FLUJO Y PROMPT ===
 
@@ -453,17 +451,15 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
 
 // ✅✅✅ INICIO: VERSIÓN 3 - LÓGICA DE RE-CONSULTA CONTROLADA ✅✅✅
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-      // --- INICIO NUEVA LÓGICA DE CARRITO ---
-    if (res && res.respuesta) {
-        const mensajeConfirmacionCarrito = await agregarProductoAlCarrito(res.respuesta, state);
-        if (mensajeConfirmacionCarrito) {
-            // Si se añadió algo al carrito, notificamos al cliente
-            await flowDynamic(mensajeConfirmacionCarrito);
-        }
-        // Limpiamos el marcador de la respuesta para que no se muestre al usuario
-        res.respuesta = res.respuesta.replace(/\[AGREGAR_CARRITO:.*?\]/g, '').trim();
-    }
-    // --- FIN NUEVA LÓGICA DE CARRITO ---
+   // --- INICIO NUEVA LÓGICA DE CARRITO SILENCIOSO ---
+if (res && res.respuesta) {
+    // Se llama a la función para que trabaje en segundo plano. No se espera una respuesta para el usuario.
+    await agregarProductoAlCarrito(res.respuesta, state);
+    
+    // Limpiamos el marcador de la respuesta para que nunca llegue al cliente.
+    res.respuesta = res.respuesta.replace(/🧩AGREGAR_CARRITO🧩/g, '').trim();
+}
+// --- FIN NUEVA LÓGICA DE CARRITO SILENCIOSO ---
     console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta (Lógica de Re-consulta Controlada)...');
 
     // Guardamos el estado ANTES de cualquier cambio.
