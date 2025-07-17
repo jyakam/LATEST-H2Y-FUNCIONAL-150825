@@ -449,36 +449,27 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     return tools.fallBack();
  });
 
-// ✅✅✅ INICIO: VERSIÓN 3 - LÓGICA DE RE-CONSULTA CONTROLADA ✅✅✅
+// REEMPLAZA TU FUNCIÓN EXISTENTE POR ESTA VERSIÓN CORREGIDA FUNCION LOGICA RECONSULTA
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-   // --- INICIO NUEVA LÓGICA DE CARRITO SILENCIOSO ---
-if (res && res.respuesta) {
-    // Se llama a la función para que trabaje en segundo plano. No se espera una respuesta para el usuario.
-    await agregarProductoAlCarrito(res.respuesta, state);
+    // 1. Lógica del carrito silencioso. Se ejecuta para la PRIMERA respuesta de la IA.
+    if (res && res.respuesta) {
+        await agregarProductoAlCarrito(res.respuesta, state);
+    }
     
-    // Limpiamos el marcador de la respuesta para que nunca llegue al cliente.
-    res.respuesta = res.respuesta.replace(/🧩AGREGAR_CARRITO🧩/g, '').trim();
-}
-// --- FIN NUEVA LÓGICA DE CARRITO SILENCIOSO ---
-    console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta (Lógica de Re-consulta Controlada)...');
+    console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta...');
 
-    // Guardamos el estado ANTES de cualquier cambio.
     const pasoAnterior = state.get('pasoFlujoActual');
 
-    // 1. Procesamos la respuesta de la IA para actualizar el estado (activar marcadores).
-    // La respuesta de texto que viene aquí la vamos a ignorar si hay cambio de paso.
-    await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
+    // 2. Procesamos marcadores de la PRIMERA respuesta
+    const respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
 
-    // Guardamos el estado DESPUÉS de procesar los marcadores.
     const pasoNuevo = state.get('pasoFlujoActual');
     const huboCambioDePaso = (pasoAnterior !== pasoNuevo);
 
-    // 2. Lógica Central: ¿Hubo un cambio de paso?
+    // 3. Lógica de Re-consulta (la que quieres mantener)
     if (huboCambioDePaso) {
-        // ¡SÍ HUBO CAMBIO DE PASO! Esto requiere una re-consulta para dar la respuesta correcta.
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
 
-        // Armamos el nuevo prompt con el contexto del PASO recién activado.
         const bloques = ARCHIVO.PROMPT_BLOQUES;
         const nuevoPromptSistema = armarPromptOptimizado(state, bloques);
         const contactoCache = getContactoByTelefono(ctx.from);
@@ -487,28 +478,29 @@ if (res && res.respuesta) {
             contacto: contactoCache || {}
         };
         
-        console.log('    [ACCIÓN] Realizando la re-consulta controlada a la IA...');
-        // ESTA ES LA RE-CONSULTA CONTROLADA Y NECESARIA.
-        // Se vuelve a enviar el mensaje ORIGINAL del cliente (txt), pero con el NUEVO prompt.
+        console.log('   [ACCIÓN] Realizando la re-consulta controlada a la IA...');
         const respuestaFinal = await EnviarIA(txt, nuevoPromptSistema, {
             ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
         }, estado);
 
-        // Enviamos la respuesta obtenida de la SEGUNDA consulta.
-        // Ya no se procesan más marcadores para evitar bucles. Simplemente se envía.
+        // --- INICIO DE LA CORRECCIÓN CRÍTICA ---
+        // Debemos procesar la respuesta final para el carrito ANTES de enviarla.
+        if (respuestaFinal && respuestaFinal.respuesta) {
+            await agregarProductoAlCarrito(respuestaFinal.respuesta, state);
+        }
+        // --- FIN DE LA CORRECCIÓN CRÍTICA ---
+
+        // Ahora sí enviamos la respuesta final, ya procesada para el carrito.
         await Responder(respuestaFinal, ctx, flowDynamic, state);
         return;
 
     } else {
-        // ¡NO HUBO CAMBIO DE PASO! La IA dio una respuesta normal sin activar marcadores.
-        console.log('✅ [MANEJAR_IA] No hubo cambio de paso. Enviando respuesta directa de la IA.');
-        
-        // Simplemente enviamos la respuesta original que nos dio la IA.
-        await Responder(res, ctx, flowDynamic, state);
+        // Si no hubo cambio de paso, enviamos la primera respuesta ya procesada.
+        console.log('✅ [MANEJAR_IA] No hubo cambio de paso. Enviando respuesta procesada.');
+        await Responder(respuestaProcesada, ctx, flowDynamic, state);
         return;
     }
 }
-// ✅✅✅ FIN: VERSIÓN 3 - LÓGICA DE RE-CONSULTA CONTROLADA ✅✅✅
 
 async function Responder(res, ctx, flowDynamic, state) {
   if (res.tipo === ENUM_IA_RESPUESTAS.TEXTO && res.respuesta) {
