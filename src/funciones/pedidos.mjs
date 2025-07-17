@@ -29,12 +29,16 @@ export const crearPedidoDesdeState = async (state, ctx) => {
         const subtotal = carrito.reduce((acc, item) => acc + (item.cantidad * item.precio), 0);
         const valorTotal = subtotal;
 
+        // --- INICIO DE LA CORRECCIÓN DE FECHA/HORA ---
+        const ahora = new Date();
+        const fecha = `${ahora.getDate().toString().padStart(2, '0')}/${(ahora.getMonth() + 1).toString().padStart(2, '0')}/${ahora.getFullYear()}`;
+        const hora = `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}:${ahora.getSeconds().toString().padStart(2, '0')}`;
+        // --- FIN DE LA CORRECCIÓN DE FECHA/HORA ---
+
         const datosCabecera = {
             ID_PEDIDO: idUnico,
-            // --- LÍNEAS CORREGIDAS ---
-            FECHA_PEDIDO: new Date().toLocaleDateString('es-CO'),
-            HORA_PEDIDO: new Date().toLocaleTimeString('es-CO'),
-            // -------------------------
+            FECHA_PEDIDO: fecha, // Usamos la nueva variable segura
+            HORA_PEDIDO: hora,   // Usamos la nueva variable segura
             TELEFONO_REGISTRADO: ctx.from,
             NOMBRE_COMPLETO_CLIENTE: state.get('nombre_cliente') || ctx.pushName,
             DIRECCION: state.get('direccion_cliente') || '',
@@ -66,11 +70,11 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             ID_PEDIDO: idUnico,
             SKU: item.sku || 'N/A',
             NOMBRE_PRODUCTO: item.nombre,
-            TIPO_PRODUCTO: item.tipo_producto || 'PRODUCTO',
-            OPCION_1_COLOR: item.opciones?.color || '',
-            OPCION_2_TALLA: item.opciones?.talla || '',
-            OPCION_3_TAMANO: item.opciones?.tamano || '',
-            OPCION_4_SABOR: item.opciones?.sabor || '',
+            TIPO_PRODUCTO: 'PRODUCTO',
+            OPCION_1_COLOR: '',
+            OPCION_2_TALLA: '',
+            OPCION_3_TAMANO: '',
+            OPCION_4_SABOR: '',
             CANTIDAD: item.cantidad,
             PRECIO_UNITARIO: item.precio,
             TOTAL_PRODUCTOS: item.cantidad * item.precio,
