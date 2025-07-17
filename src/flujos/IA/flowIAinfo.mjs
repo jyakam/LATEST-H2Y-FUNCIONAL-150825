@@ -29,7 +29,7 @@ import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA 
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
 
-// --- VERSIÓN CORREGIDA Y FINAL ---
+// --- INICIO NUEVA FUNCIÓN PARA MANEJAR CARRITO ---
 /**
  * Detecta la señal 🧩AGREGAR_CARRITO🧩 y extrae los detalles del producto.
  * @param {string} respuestaIA - La respuesta completa de la IA.
@@ -45,21 +45,43 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
 
     const textoParaExtraer = respuestaIA.replace(/🧩AGREGAR_CARRITO🧩/g, '').trim();
     const promptExtractor = `
-      Eres un asistente experto en procesar datos. Del siguiente texto, extrae el nombre del producto, la cantidad y el precio unitario. Devuelve únicamente un objeto JSON válido con la estructura {"sku": "SKU_SI_LO_ENCUENTRAS_O_N/A", "nombre": "...", "cantidad": ..., "precio": ...}. El precio debe ser un número sin puntos, comas o símbolos. Texto a analizar:
+      Eres un sistema experto en extracción de datos estructurados a partir de texto. Tu única tarea es analizar el siguiente texto, que describe un producto que un cliente desea comprar, y convertirlo en un objeto JSON.
+
+      REGLAS CRÍTICAS PARA LA EXTRACCIÓN:
+      - Analiza el texto para identificar el nombre completo del producto, su SKU, la cantidad confirmada, el precio de venta final y la categoría.
+      - "sku": DEBES EXTRAER el código SKU. Es vital para la logística. Si en el texto no se menciona un SKU explícito, pero se intuye (ej. "Tratamiento 1 Mes"), usa el código que conozcas para ese producto (ej. "t1"). Si es imposible determinarlo, usa el valor "N/A".
+      - "nombre": EXTRAE el nombre completo y oficial del producto.
+      - "cantidad": EXTRAE la cantidad como un NÚMERO. Si el cliente no especifica una cantidad, DEBES asumir que es 1.
+      - "precio": EXTRAE el precio final para el cliente (usualmente el 'precio oferta'). Debe ser un NÚMERO, sin puntos, comas, "COP" o símbolos de moneda.
+      - "categoria": EXTRAE la categoría del producto. Si no se menciona explícitamente, infiérela del nombre del producto. Si es imposible, usa "General".
+
+      Devuelve ÚNICAMENTE el objeto JSON válido. No añadas texto, explicaciones ni disculpas.
+
+      Texto a analizar:
       "${textoParaExtraer}"
     `;
     
-    // CORRECCIÓN: Ahora pasamos el objeto 'tools' completo a EnviarIA para que tenga todo lo que necesita.
     const resultadoExtraccion = await EnviarIA(promptExtractor, '', tools, {}); 
     
     try {
         const productoJSON = JSON.parse(resultadoExtraccion.respuesta);
 
-        if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio) {
+        if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio && productoJSON.sku && productoJSON.categoria) {
             const carrito = state.get('carrito') || [];
-            carrito.push(productoJSON);
+            
+            const nuevoProductoEnCarrito = {
+                sku: productoJSON.sku,
+                nombre: productoJSON.nombre,
+                cantidad: productoJSON.cantidad,
+                precio: productoJSON.precio,
+                categoria: productoJSON.categoria
+            };
+
+            carrito.push(nuevoProductoEnCarrito);
             await state.update({ carrito });
-            console.log('🛒✅ [CARRITO] Producto añadido silenciosamente al estado:', productoJSON);
+            console.log('🛒✅ [CARRITO] Producto añadido silenciosamente al estado:', nuevoProductoEnCarrito);
+        } else {
+            console.error('❌ [CARRITO] El JSON extraído por la IA está incompleto:', productoJSON);
         }
     } catch (e) {
         console.error('❌ [CARRITO] Error parseando JSON extraído por la segunda IA:', resultadoExtraccion.respuesta, e);
@@ -67,7 +89,7 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
     
     return;
 }
-// --- FIN DE LA NUEVA VERSIÓN ---
+// --- FIN NUEVA FUNCIÓN PARA MANEJAR CARRITO ---
 
 // === BLOQUES DE AYUDA PARA EL FLUJO Y PROMPT ===
 
@@ -448,9 +470,7 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     return tools.fallBack();
  });
 
-// REEMPLAZA TU FUNCIÓN EXISTENTE POR ESTA VERSIÓN CORREGIDA FUNCION LOGICA RECONSULTA
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-    // Creamos el objeto 'tools' para pasarlo fácilmente a las funciones
     const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
 
     // Lógica del carrito silencioso para la PRIMERA respuesta de la IA.
@@ -468,7 +488,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
     const pasoNuevo = state.get('pasoFlujoActual');
     const huboCambioDePaso = (pasoAnterior !== pasoNuevo);
 
-    // Lógica de Re-consulta (la que quieres mantener)
+    // Lógica de Re-consulta
     if (huboCambioDePaso) {
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
 
@@ -488,7 +508,6 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
             await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
         }
 
-        // Ahora sí enviamos la respuesta final, ya procesada para el carrito.
         await Responder(respuestaFinal, ctx, flowDynamic, state);
         return;
 
