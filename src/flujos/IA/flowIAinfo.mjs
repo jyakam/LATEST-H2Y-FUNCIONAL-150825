@@ -29,15 +29,15 @@ import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA 
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
 
-// --- NUEVA VERSIÓN SILENCIOSA DE LA FUNCIÓN ---
+// --- VERSIÓN CORREGIDA Y FINAL ---
 /**
- * Busca la señal 🧩AGREGAR_CARRITO🧩, extrae los detalles del producto
- * de forma interna y los añade al estado. NO devuelve ningún mensaje.
+ * Detecta la señal 🧩AGREGAR_CARRITO🧩 y extrae los detalles del producto.
  * @param {string} respuestaIA - La respuesta completa de la IA.
  * @param {object} state - El estado actual del bot.
+ * @param {object} tools - El conjunto de herramientas del bot (ctx, flowDynamic, etc.).
  */
-async function agregarProductoAlCarrito(respuestaIA, state) {
-    if (!respuestaIA.includes('🧩AGREGAR_CARRITO🧩')) {
+async function agregarProductoAlCarrito(respuestaIA, state, tools) {
+    if (!respuestaIA || !respuestaIA.includes('🧩AGREGAR_CARRITO🧩')) {
         return; // No hay señal, no hacemos nada.
     }
 
@@ -49,8 +49,8 @@ async function agregarProductoAlCarrito(respuestaIA, state) {
       "${textoParaExtraer}"
     `;
     
-    // Hacemos la llamada interna a la IA para la extracción
-    const resultadoExtraccion = await EnviarIA(promptExtractor, '', {}, {}); 
+    // CORRECCIÓN: Ahora pasamos el objeto 'tools' completo a EnviarIA para que tenga todo lo que necesita.
+    const resultadoExtraccion = await EnviarIA(promptExtractor, '', tools, {}); 
     
     try {
         const productoJSON = JSON.parse(resultadoExtraccion.respuesta);
@@ -65,7 +65,6 @@ async function agregarProductoAlCarrito(respuestaIA, state) {
         console.error('❌ [CARRITO] Error parseando JSON extraído por la segunda IA:', resultadoExtraccion.respuesta, e);
     }
     
-    // La función ahora termina aquí y no devuelve ningún mensaje.
     return;
 }
 // --- FIN DE LA NUEVA VERSIÓN ---
@@ -451,22 +450,25 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
 
 // REEMPLAZA TU FUNCIÓN EXISTENTE POR ESTA VERSIÓN CORREGIDA FUNCION LOGICA RECONSULTA
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
-    // 1. Lógica del carrito silencioso. Se ejecuta para la PRIMERA respuesta de la IA.
+    // Creamos el objeto 'tools' para pasarlo fácilmente a las funciones
+    const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
+
+    // Lógica del carrito silencioso para la PRIMERA respuesta de la IA.
     if (res && res.respuesta) {
-        await agregarProductoAlCarrito(res.respuesta, state);
+        await agregarProductoAlCarrito(res.respuesta, state, tools);
     }
     
     console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta...');
 
     const pasoAnterior = state.get('pasoFlujoActual');
 
-    // 2. Procesamos marcadores de la PRIMERA respuesta
-    const respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, { flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state });
+    // Procesamos marcadores de la PRIMERA respuesta
+    const respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, tools);
 
     const pasoNuevo = state.get('pasoFlujoActual');
     const huboCambioDePaso = (pasoAnterior !== pasoNuevo);
 
-    // 3. Lógica de Re-consulta (la que quieres mantener)
+    // Lógica de Re-consulta (la que quieres mantener)
     if (huboCambioDePaso) {
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
 
@@ -479,16 +481,12 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         };
         
         console.log('   [ACCIÓN] Realizando la re-consulta controlada a la IA...');
-        const respuestaFinal = await EnviarIA(txt, nuevoPromptSistema, {
-            ctx, flowDynamic, endFlow, gotoFlow, provider: ctx.provider, state, promptExtra: ''
-        }, estado);
+        const respuestaFinal = await EnviarIA(txt, nuevoPromptSistema, tools, estado);
 
-        // --- INICIO DE LA CORRECCIÓN CRÍTICA ---
-        // Debemos procesar la respuesta final para el carrito ANTES de enviarla.
+        // Procesamos la respuesta final para el carrito ANTES de enviarla.
         if (respuestaFinal && respuestaFinal.respuesta) {
-            await agregarProductoAlCarrito(respuestaFinal.respuesta, state);
+            await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
         }
-        // --- FIN DE LA CORRECCIÓN CRÍTICA ---
 
         // Ahora sí enviamos la respuesta final, ya procesada para el carrito.
         await Responder(respuestaFinal, ctx, flowDynamic, state);
