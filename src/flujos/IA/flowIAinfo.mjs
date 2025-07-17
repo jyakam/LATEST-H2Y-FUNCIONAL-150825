@@ -29,6 +29,49 @@ import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA 
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
 
+// --- INICIO NUEVA FUNCIÓN PARA MANEJAR CARRITO ---
+/**
+ * Busca en la respuesta de la IA el marcador para agregar productos al carrito,
+ * los añade al estado y devuelve un mensaje de confirmación.
+ * @param {string} respuestaIA - La respuesta completa de la IA.
+ * @param {object} state - El estado actual del bot.
+ * @returns {string|null} Un mensaje de confirmación o null si no se añadió nada.
+ */
+async function agregarProductoAlCarrito(respuestaIA, state) {
+    const regex = /\[AGREGAR_CARRITO:\s*({.*?})\]/g;
+    const coincidencias = [...respuestaIA.matchAll(regex)];
+
+    if (coincidencias.length === 0) {
+        return null; // No hay productos para añadir
+    }
+
+    const carrito = state.get('carrito') || [];
+    let productosAñadidosNombres = [];
+
+    for (const match of coincidencias) {
+        try {
+            const productoJSON = JSON.parse(match[1]);
+            // Validaciones básicas del objeto
+            if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio) {
+                carrito.push(productoJSON);
+                productosAñadidosNombres.push(`${productoJSON.cantidad} x ${productoJSON.nombre}`);
+                console.log('🛒 [CARRITO] Producto añadido:', productoJSON);
+            }
+        } catch (e) {
+            console.error('❌ [CARRITO] Error parseando JSON del carrito:', match[1], e);
+        }
+    }
+
+    await state.update({ carrito });
+
+    if (productosAñadidosNombres.length > 0) {
+        return `✅ ¡Listo! He añadido a tu pedido: ${productosAñadidosNombres.join(', ')}. ¿Deseas algo más?`;
+    }
+
+    return null;
+}
+// --- FIN NUEVA FUNCIÓN PARA MANEJAR CARRITO ---
+
 // === BLOQUES DE AYUDA PARA EL FLUJO Y PROMPT ===
 
 function getPasoFlujoActual(state) {
@@ -131,11 +174,12 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     // Si no hay pasoFlujoActual o seccionesActivas, inicializa en PASO 1
     if (!state.get('pasoFlujoActual') && !state.get('seccionesActivas')) {
       await state.update({
-        pasoFlujoActual: 0,   // PASO 1 del flujo
-        seccionesActivas: []   // No hay secciones activas al arrancar
+        pasoFlujoActual: 0,
+        seccionesActivas: [],
+        carrito: [] // Asegúrate de que esta línea esté aquí
       });
-      console.log('🟢 [IAINFO] Estado inicializado: PASO 1, seccionesActivas vacías');
-    } else {
+      console.log('🟢 [IAINFO] Estado inicializado: PASO 1, seccionesActivas y carrito vacíos');
+      } else {
       console.log('🟢 [IAINFO] Estado existente: PASO', state.get('pasoFlujoActual') + 1, ', seccionesActivas:', state.get('seccionesActivas') || []);
     }
 
@@ -409,6 +453,17 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
 
 // ✅✅✅ INICIO: VERSIÓN 3 - LÓGICA DE RE-CONSULTA CONTROLADA ✅✅✅
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
+      // --- INICIO NUEVA LÓGICA DE CARRITO ---
+    if (res && res.respuesta) {
+        const mensajeConfirmacionCarrito = await agregarProductoAlCarrito(res.respuesta, state);
+        if (mensajeConfirmacionCarrito) {
+            // Si se añadió algo al carrito, notificamos al cliente
+            await flowDynamic(mensajeConfirmacionCarrito);
+        }
+        // Limpiamos el marcador de la respuesta para que no se muestre al usuario
+        res.respuesta = res.respuesta.replace(/\[AGREGAR_CARRITO:.*?\]/g, '').trim();
+    }
+    // --- FIN NUEVA LÓGICA DE CARRITO ---
     console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta (Lógica de Re-consulta Controlada)...');
 
     // Guardamos el estado ANTES de cualquier cambio.
