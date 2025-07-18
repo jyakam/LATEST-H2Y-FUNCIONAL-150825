@@ -3,11 +3,11 @@ import {
     escribirCabeceraPedido,
     escribirDetallesPedido
 } from './helpers/pedidosSheetHelper.mjs';
+import { getContactoByTelefono } from './helpers/cacheContactos.mjs';
 
 /**
- * Orquesta la creación de un pedido completo a partir del estado de la conversación.
- * @param {object} state - El estado actual de la conversación del bot (contiene el carrito).
- * @param {object} ctx - El contexto de la conversación (contiene el número de teléfono del cliente).
+ * Orquesta la creación de un pedido completo a partir del estado de la conversación,
+ * replicando la lógica de "blindaje" y "limpieza" de contactos.mjs.
  */
 export const crearPedidoDesdeState = async (state, ctx) => {
     console.log('Iniciando proceso de creación de pedido...');
@@ -19,6 +19,10 @@ export const crearPedidoDesdeState = async (state, ctx) => {
     }
 
     try {
+        // --- PASO 1: OBTENER DATOS FRESCOS DEL CONTACTO ---
+        const phone = ctx.from.split('@')[0];
+        const contacto = getContactoByTelefono(phone) || {}; // Obtenemos el contacto actualizado de la caché
+
         const numeroConsecutivo = await obtenerSiguienteConsecutivo();
         if (numeroConsecutivo === -1) {
             throw new Error('No se pudo obtener el número consecutivo.');
@@ -33,20 +37,21 @@ export const crearPedidoDesdeState = async (state, ctx) => {
         const fecha = `${ahora.getDate().toString().padStart(2, '0')}/${(ahora.getMonth() + 1).toString().padStart(2, '0')}/${ahora.getFullYear()}`;
         const hora = `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}:${ahora.getSeconds().toString().padStart(2, '0')}`;
 
+        // --- PASO 2: ARMAR EL PAQUETE DE DATOS COMPLETO ---
         const datosCabecera = {
             ID_PEDIDO: idUnico,
             FECHA_PEDIDO: fecha,
             HORA_PEDIDO: hora,
             TELEFONO_REGISTRADO: ctx.from,
-            NOMBRE_COMPLETO_CLIENTE: state.get('nombre_cliente') || ctx.pushName,
-            DIRECCION: state.get('direccion_cliente') || '',
-            DIRECCION_2: '',
-            CIUDAD: state.get('ciudad_cliente') || '',
-            DEPARTAMENTO_REGION_ESTADO: state.get('depto_cliente') || '',
-            CODIGO_POSTAL: '',
-            PAIS: 'Colombia',
-            EMAIL: state.get('email_cliente') || '',
-            TELEFONO: ctx.from,
+            NOMBRE_COMPLETO_CLIENTE: contacto.NOMBRE || ctx.pushName,
+            DIRECCION: contacto.DIRECCION || '',
+            DIRECCION_2: contacto.DIRECCION_2 || '',
+            CIUDAD: contacto.CIUDAD || '',
+            DEPARTAMENTO_REGION_ESTADO: contacto.ESTADO_DEPARTAMENTO || '',
+            CODIGO_POSTAL: contacto.CODIGO_POSTAL || '',
+            PAIS: contacto.PAIS || 'Colombia',
+            EMAIL: contacto.EMAIL || '',
+            TELEFONO: contacto.TELEFONO || ctx.from,
             SUBTOTAL: subtotal,
             VALOR_ENVIO: 0,
             IMPUESTOS: 0,
@@ -80,22 +85,21 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             NOTA_PRODUCTO: '',
         }));
 
-        // Lógica de limpieza para eliminar campos vacíos antes de enviar
+        // --- PASO 3: LÓGICA DE LIMPIEZA (IDÉNTICA A LA DE CONTACTOS.MJS) ---
         const cabeceraLimpia = Object.fromEntries(
-            Object.entries(datosCabecera).filter(([key, value]) => {
-                return value !== null && value !== undefined && value !== '';
-            })
+            Object.entries(datosCabecera).filter(([, value]) => value !== null && value !== undefined && value !== '')
         );
         
-        console.log('📦 [DEBUG PEDIDO] Paquete de CABECERA (Limpio) a enviar:', JSON.stringify(cabeceraLimpia, null, 2));
+        console.log('✨ [DEBUG PEDIDO] Paquete de CABECERA (Limpio) a enviar:', JSON.stringify(cabeceraLimpia, null, 2));
         console.log('📄 [DEBUG PEDIDO] Paquete de DETALLES a enviar:', JSON.stringify(datosDetalles, null, 2));
 
+        // --- PASO 4: ENVIAR LOS DATOS LIMPIOS ---
         await escribirCabeceraPedido(cabeceraLimpia);
         await escribirDetallesPedido(datosDetalles);
 
-        console.log(`Pedido ${numeroPedidoVisible} creado con éxito.`);
+        console.log(`✅ Pedido ${numeroPedidoVisible} creado con éxito.`);
 
     } catch (error) {
-        console.error('Error mayor en el proceso de creación del pedido:', error);
+        console.error('❌ Error mayor en el proceso de creación del pedido:', error);
     }
 };
