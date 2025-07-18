@@ -1,9 +1,24 @@
+// src/funciones/pedidos.mjs
+
 import {
     obtenerSiguienteConsecutivo,
     escribirCabeceraPedido,
     escribirDetallesPedido
 } from './helpers/pedidosSheetHelper.mjs';
 import { getContactoByTelefono } from './helpers/cacheContactos.mjs';
+
+// Lista de todas las columnas que tu tabla PEDIDOS espera recibir.
+// Esto asegura que no enviemos campos extra o basura a la API.
+const COLUMNAS_VALIDAS_PEDIDO = [
+    'ID_PEDIDO', 'FECHA_PEDIDO', 'HORA_PEDIDO', 'TELEFONO_REGISTRADO',
+    'NOMBRE_COMPLETO_CLIENTE', 'DIRECCION', 'DIRECCION_2', 'CIUDAD',
+    'DEPARTAMENTO_REGION_ESTADO', 'CODIGO_POSTAL', 'PAIS', 'EMAIL', 'TELEFONO',
+    'SUBTOTAL', 'VALOR_ENVIO', 'IMPUESTOS', 'DESCUENTOS', 'VALOR__TOTAL',
+    'FORMA_PAGO', 'ESTADO_PAGO', 'SALDO_PENDIENTE', 'TRANSPORTADORA',
+    'GUIA_TRANSPORTE', 'ESTADO_PEDIDO', 'NOTAS_PEDIDO', 'NUMERO_CONSECUTIVO',
+    'NUMERO_PEDIDO_VISIBLE'
+];
+
 
 /**
  * Orquesta la creación de un pedido completo a partir del estado de la conversación,
@@ -19,9 +34,9 @@ export const crearPedidoDesdeState = async (state, ctx) => {
     }
 
     try {
-        // --- PASO 1: OBTENER DATOS FRESCOS DEL CONTACTO ---
-        const phone = ctx.from.split('@')[0];
-        const contacto = getContactoByTelefono(phone) || {}; // Obtenemos el contacto actualizado de la caché
+        // --- PASO 1: OBTENER DATOS FRESCOS DEL CONTACTO Y DEL PEDIDO ---
+        const phone = ctx.from;
+        const contacto = getContactoByTelefono(phone) || {};
 
         const numeroConsecutivo = await obtenerSiguienteConsecutivo();
         if (numeroConsecutivo === -1) {
@@ -30,14 +45,14 @@ export const crearPedidoDesdeState = async (state, ctx) => {
 
         const idUnico = `PED-${Date.now()}`;
         const numeroPedidoVisible = `PED-${numeroConsecutivo.toString().padStart(3, '0')}`;
-        const subtotal = carrito.reduce((acc, item) => acc + (item.cantidad * item.precio), 0);
-        const valorTotal = subtotal;
+        const subtotal = carrito.reduce((acc, item) => acc + (item.CANTIDAD * item.PRECIO_UNITARIO), 0);
+        const valorTotal = subtotal; // Aquí puedes sumar envío, etc. en el futuro
 
         const ahora = new Date();
         const fecha = `${ahora.getDate().toString().padStart(2, '0')}/${(ahora.getMonth() + 1).toString().padStart(2, '0')}/${ahora.getFullYear()}`;
         const hora = `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}:${ahora.getSeconds().toString().padStart(2, '0')}`;
 
-        // --- PASO 2: ARMAR EL PAQUETE DE DATOS COMPLETO ---
+        // --- PASO 2: ARMAR EL PAQUETE DE DATOS COMPLETO (CON POSIBLES CAMPOS VACÍOS) ---
         const datosCabecera = {
             ID_PEDIDO: idUnico,
             FECHA_PEDIDO: fecha,
@@ -68,28 +83,37 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             NUMERO_PEDIDO_VISIBLE: numeroPedidoVisible,
         };
 
+        // --- PASO 3: LÓGICA DE LIMPIEZA (IDÉNTICA A LA DE CONTACTOS.MJS) ---
+        // Se crea un nuevo objeto 'limpio' que solo contiene campos válidos y con valor.
+        const cabeceraLimpia = Object.fromEntries(
+            Object.entries(datosCabecera).filter(([key, value]) =>
+                COLUMNAS_VALIDAS_PEDIDO.includes(key) && // El campo debe ser uno de los permitidos
+                (
+                    (typeof value === 'string' && value.trim() !== '') || // Si es texto, no debe estar vacío
+                    typeof value === 'number' ||                         // O debe ser un número
+                    typeof value === 'boolean'                           // O debe ser un booleano
+                )
+            )
+        );
+       
+        // El paquete de detalles no necesita limpieza, ya que se arma con datos del carrito.
         const datosDetalles = carrito.map((item, index) => ({
             ID_DETALLE: `${idUnico}-DET-${index + 1}`,
             ID_PEDIDO: idUnico,
-            SKU: item.sku || 'N/A',
-            NOMBRE_PRODUCTO: item.nombre,
+            SKU: item.SKU || 'N/A',
+            NOMBRE_PRODUCTO: item.NOMBRE_PRODUCTO,
             TIPO_PRODUCTO: 'PRODUCTO',
-            OPCION_1_COLOR: '',
-            OPCION_2_TALLA: '',
-            OPCION_3_TAMANO: '',
-            OPCION_4_SABOR: '',
-            CANTIDAD: item.cantidad,
-            PRECIO_UNITARIO: item.precio,
-            TOTAL_PRODUCTOS: item.cantidad * item.precio,
-            CATEGORIA: item.categoria || 'General',
-            NOTA_PRODUCTO: '',
+            OPCION_1_COLOR: item.OPCION_1_COLOR || '',
+            OPCION_2_TALLA: item.OPCION_2_TALLA || '',
+            OPCION_3_TAMANO: item.OPCION_3_TAMANO || '',
+            OPCION_4_SABOR: item.OPCION_4_SABOR || '',
+            CANTIDAD: item.CANTIDAD,
+            PRECIO_UNITARIO: item.PRECIO_UNITARIO,
+            TOTAL_PRODUCTOS: item.CANTIDAD * item.PRECIO_UNITARIO,
+            CATEGORIA: item.CATEGORIA || 'General',
+            NOTA_PRODUCTO: item.NOTA_PRODUCTO || '',
         }));
 
-        // --- PASO 3: LÓGICA DE LIMPIEZA (IDÉNTICA A LA DE CONTACTOS.MJS) ---
-        const cabeceraLimpia = Object.fromEntries(
-            Object.entries(datosCabecera).filter(([, value]) => value !== null && value !== undefined && value !== '')
-        );
-        
         console.log('✨ [DEBUG PEDIDO] Paquete de CABECERA (Limpio) a enviar:', JSON.stringify(cabeceraLimpia, null, 2));
         console.log('📄 [DEBUG PEDIDO] Paquete de DETALLES a enviar:', JSON.stringify(datosDetalles, null, 2));
 
