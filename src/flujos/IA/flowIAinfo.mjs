@@ -482,22 +482,22 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     return tools.fallBack();
  });
 
-// Este es el bloque completo que reemplaza a tu manejarRespuestaIA actual
+// En el archivo: src/flujos/IA/flowIAinfo.mjs
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
     const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
     
     console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta...');
     const pasoAnterior = state.get('pasoFlujoActual');
 
-    // Procesamos marcadores de la PRIMERA respuesta
+    // Procesamos marcadores de la PRIMERA respuesta para actualizar el estado
     let respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, tools);
 
     const pasoNuevo = state.get('pasoFlujoActual');
     const huboCambioDePaso = (pasoAnterior !== pasoNuevo);
 
-    let respuestaFinal = respuestaProcesada;
+    let respuestaFinal = respuestaProcesada; // Por defecto, la respuesta final es la primera procesada
 
-    // Lógica de Re-consulta
+    // Si hubo cambio de paso, realizamos la re-consulta
     if (huboCambioDePaso) {
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
         const bloques = ARCHIVO.PROMPT_BLOQUES;
@@ -512,12 +512,12 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         respuestaFinal = await EnviarIA(txt, nuevoPromptSistema, tools, estado);
     }
     
-    // LÓGICA DE CARRITO ÚNICA Y FINAL: Se procesa solo la respuesta definitiva que se le enviará al cliente.
+    // LÓGICA DE CARRITO ÚNICA Y FINAL: Se procesa solo la respuesta definitiva.
     if (respuestaFinal && respuestaFinal.respuesta) {
         await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
     }
     
-    // Se envía la respuesta final (sea de la primera o de la segunda consulta)
+    // Se envía la respuesta final (sea de la primera o de la segunda consulta) al cliente.
     await Responder(respuestaFinal, ctx, flowDynamic, state);
     return;
 }
