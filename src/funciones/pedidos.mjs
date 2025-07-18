@@ -9,6 +9,7 @@ import { getContactoByTelefono } from './helpers/cacheContactos.mjs';
  * Orquesta la creación de un pedido completo a partir del estado de la conversación,
  * replicando la lógica de "blindaje" y "limpieza" de contactos.mjs.
  */
+// En el archivo: src/funciones/pedidos.mjs
 export const crearPedidoDesdeState = async (state, ctx) => {
     console.log('Iniciando proceso de creación de pedido...');
     const carrito = state.get('carrito');
@@ -19,9 +20,8 @@ export const crearPedidoDesdeState = async (state, ctx) => {
     }
 
     try {
-        // --- PASO 1: OBTENER DATOS FRESCOS DEL CONTACTO ---
         const phone = ctx.from.split('@')[0];
-        const contacto = getContactoByTelefono(phone) || {}; // Obtenemos el contacto actualizado de la caché
+        const contacto = getContactoByTelefono(phone) || {};
 
         const numeroConsecutivo = await obtenerSiguienteConsecutivo();
         if (numeroConsecutivo === -1) {
@@ -37,7 +37,6 @@ export const crearPedidoDesdeState = async (state, ctx) => {
         const fecha = `${ahora.getDate().toString().padStart(2, '0')}/${(ahora.getMonth() + 1).toString().padStart(2, '0')}/${ahora.getFullYear()}`;
         const hora = `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}:${ahora.getSeconds().toString().padStart(2, '0')}`;
 
-        // --- PASO 2: ARMAR EL PAQUETE DE DATOS COMPLETO ---
         const datosCabecera = {
             ID_PEDIDO: idUnico,
             FECHA_PEDIDO: fecha,
@@ -85,7 +84,6 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             NOTA_PRODUCTO: '',
         }));
 
-        // --- PASO 3: LÓGICA DE LIMPIEZA (IDÉNTICA A LA DE CONTACTOS.MJS) ---
         const cabeceraLimpia = Object.fromEntries(
             Object.entries(datosCabecera).filter(([, value]) => value !== null && value !== undefined && value !== '')
         );
@@ -93,7 +91,6 @@ export const crearPedidoDesdeState = async (state, ctx) => {
         console.log('✨ [DEBUG PEDIDO] Paquete de CABECERA (Limpio) a enviar:', JSON.stringify(cabeceraLimpia, null, 2));
         console.log('📄 [DEBUG PEDIDO] Paquete de DETALLES a enviar:', JSON.stringify(datosDetalles, null, 2));
 
-        // --- PASO 4: ENVIAR LOS DATOS LIMPIOS ---
         await escribirCabeceraPedido(cabeceraLimpia);
         await escribirDetallesPedido(datosDetalles);
 
