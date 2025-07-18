@@ -277,6 +277,12 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
       }
     }
 
+      // --- INICIO DE BLOQUE DE DEPURACIÓN DE FECHAS ---
+console.log('🐞 [DEBUG FECHAS] Verificando variables ANTES de llamar a ActualizarFechasContacto...');
+console.log('🐞 [DEBUG FECHAS] Valor de la variable "phone":', phone);
+console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
+console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(contacto, null, 2));
+// --- FIN DE BLOQUE DE DEPURACIÓN DE FECHAS ---
     if (contacto) await ActualizarFechasContacto(contacto, phone)
 
     // ------ BLOQUE DE IA PARA DATOS DE CONTACTO: SIEMPRE SE EJECUTA ------
@@ -408,6 +414,12 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     }
 
     // Actualiza fechas de contacto SIEMPRE
+     // --- INICIO DE BLOQUE DE DEPURACIÓN DE FECHAS ---
+console.log('🐞 [DEBUG FECHAS] Verificando variables ANTES de llamar a ActualizarFechasContacto...');
+console.log('🐞 [DEBUG FECHAS] Valor de la variable "phone":', phone);
+console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
+console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(contacto, null, 2));
+// --- FIN DE BLOQUE DE DEPURACIÓN DE FECHAS ---
     if (contacto) await ActualizarFechasContacto(contacto, phone);
 
     // ✅✅✅ INICIO DE LA CORRECCIÓN (SECCIÓN CAPTURE) ✅✅✅
