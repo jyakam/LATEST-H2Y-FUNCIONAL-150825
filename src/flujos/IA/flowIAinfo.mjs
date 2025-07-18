@@ -470,28 +470,24 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     return tools.fallBack();
  });
 
+// Este es el bloque completo que reemplaza a tu manejarRespuestaIA actual
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
     const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
-
-    // Lógica del carrito silencioso para la PRIMERA respuesta de la IA.
-    if (res && res.respuesta) {
-        await agregarProductoAlCarrito(res.respuesta, state, tools);
-    }
     
     console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta...');
-
     const pasoAnterior = state.get('pasoFlujoActual');
 
     // Procesamos marcadores de la PRIMERA respuesta
-    const respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, tools);
+    let respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, tools);
 
     const pasoNuevo = state.get('pasoFlujoActual');
     const huboCambioDePaso = (pasoAnterior !== pasoNuevo);
 
+    let respuestaFinal = respuestaProcesada;
+
     // Lógica de Re-consulta
     if (huboCambioDePaso) {
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
-
         const bloques = ARCHIVO.PROMPT_BLOQUES;
         const nuevoPromptSistema = armarPromptOptimizado(state, bloques);
         const contactoCache = getContactoByTelefono(ctx.from);
@@ -501,22 +497,17 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         };
         
         console.log('   [ACCIÓN] Realizando la re-consulta controlada a la IA...');
-        const respuestaFinal = await EnviarIA(txt, nuevoPromptSistema, tools, estado);
-
-        // Procesamos la respuesta final para el carrito ANTES de enviarla.
-        if (respuestaFinal && respuestaFinal.respuesta) {
-            await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
-        }
-
-        await Responder(respuestaFinal, ctx, flowDynamic, state);
-        return;
-
-    } else {
-        // Si no hubo cambio de paso, enviamos la primera respuesta ya procesada.
-        console.log('✅ [MANEJAR_IA] No hubo cambio de paso. Enviando respuesta procesada.');
-        await Responder(respuestaProcesada, ctx, flowDynamic, state);
-        return;
+        respuestaFinal = await EnviarIA(txt, nuevoPromptSistema, tools, estado);
     }
+    
+    // LÓGICA DE CARRITO ÚNICA Y FINAL: Se procesa solo la respuesta definitiva que se le enviará al cliente.
+    if (respuestaFinal && respuestaFinal.respuesta) {
+        await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
+    }
+    
+    // Se envía la respuesta final (sea de la primera o de la segunda consulta)
+    await Responder(respuestaFinal, ctx, flowDynamic, state);
+    return;
 }
 
 async function Responder(res, ctx, flowDynamic, state) {
