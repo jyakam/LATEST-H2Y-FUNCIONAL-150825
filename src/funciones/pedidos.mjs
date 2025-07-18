@@ -29,16 +29,14 @@ export const crearPedidoDesdeState = async (state, ctx) => {
         const subtotal = carrito.reduce((acc, item) => acc + (item.cantidad * item.precio), 0);
         const valorTotal = subtotal;
 
-        // --- INICIO DE LA CORRECCIÓN DE FECHA/HORA ---
         const ahora = new Date();
         const fecha = `${ahora.getDate().toString().padStart(2, '0')}/${(ahora.getMonth() + 1).toString().padStart(2, '0')}/${ahora.getFullYear()}`;
         const hora = `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}:${ahora.getSeconds().toString().padStart(2, '0')}`;
-        // --- FIN DE LA CORRECCIÓN DE FECHA/HORA ---
 
         const datosCabecera = {
             ID_PEDIDO: idUnico,
-            FECHA_PEDIDO: fecha, // Usamos la nueva variable segura
-            HORA_PEDIDO: hora,   // Usamos la nueva variable segura
+            FECHA_PEDIDO: fecha,
+            HORA_PEDIDO: hora,
             TELEFONO_REGISTRADO: ctx.from,
             NOMBRE_COMPLETO_CLIENTE: state.get('nombre_cliente') || ctx.pushName,
             DIRECCION: state.get('direccion_cliente') || '',
@@ -81,11 +79,18 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             CATEGORIA: item.categoria || 'General',
             NOTA_PRODUCTO: '',
         }));
+
+        // Lógica de limpieza para eliminar campos vacíos antes de enviar
+        const cabeceraLimpia = Object.fromEntries(
+            Object.entries(datosCabecera).filter(([key, value]) => {
+                return value !== null && value !== undefined && value !== '';
+            })
+        );
         
-        console.log('📦 [DEBUG PEDIDO] Paquete de CABECERA a enviar:', JSON.stringify(datosCabecera, null, 2));
+        console.log('📦 [DEBUG PEDIDO] Paquete de CABECERA (Limpio) a enviar:', JSON.stringify(cabeceraLimpia, null, 2));
         console.log('📄 [DEBUG PEDIDO] Paquete de DETALLES a enviar:', JSON.stringify(datosDetalles, null, 2));
 
-        await escribirCabeceraPedido(datosCabecera);
+        await escribirCabeceraPedido(cabeceraLimpia);
         await escribirDetallesPedido(datosDetalles);
 
         console.log(`Pedido ${numeroPedidoVisible} creado con éxito.`);
