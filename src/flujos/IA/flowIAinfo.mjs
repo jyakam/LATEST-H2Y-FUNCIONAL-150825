@@ -503,21 +503,22 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
  });
 
 // En el archivo: src/flujos/IA/flowIAinfo.mjs
+// -------- NUEVA Y DEFINITIVA FUNCIÓN MANEJARRESPUESTAIA (PEGAR ESTA) --------
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
     const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
-    
+
     console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta...');
     const pasoAnterior = state.get('pasoFlujoActual');
 
-    // Procesamos marcadores de la PRIMERA respuesta para actualizar el estado
-    let respuestaProcesada = await cicloMarcadoresIA(res, txt, state, ctx, tools);
+    // 1. Se procesan los marcadores de la Base de Conocimiento para actualizar el estado.
+    await cicloMarcadoresIA(res, txt, state, ctx, tools);
 
     const pasoNuevo = state.get('pasoFlujoActual');
     const huboCambioDePaso = (pasoAnterior !== pasoNuevo);
 
-    let respuestaFinal = respuestaProcesada; // Por defecto, la respuesta final es la primera procesada
+    let respuestaFinal = res; // Por defecto, la respuesta final es la original.
 
-    // Si hubo cambio de paso, realizamos la re-consulta
+    // 2. Si hubo cambio de paso en la BC, se hace una segunda consulta a la IA.
     if (huboCambioDePaso) {
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
         const bloques = ARCHIVO.PROMPT_BLOQUES;
@@ -532,12 +533,38 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         respuestaFinal = await EnviarIA(txt, nuevoPromptSistema, tools, estado);
     }
     
-    // LÓGICA DE CARRITO ÚNICA Y FINAL: Se procesa solo la respuesta definitiva.
-    if (respuestaFinal && respuestaFinal.respuesta) {
-        await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
+    // --- INICIO DE LA LÓGICA DE FUSIÓN ---
+
+    const respuestaTextoIA = respuestaFinal.respuesta?.toLowerCase?.() || '';
+    console.log('🧠 [ROUTER] Analizando respuesta final de IA para acciones:', respuestaTextoIA);
+
+    // 3. ROUTER DE PRODUCTOS (Lógica Antigua Restaurada)
+    // Revisa si la IA está pidiendo una acción que cambie de flujo.
+    if (respuestaTextoIA.includes('🧩mostrarproductos')) {
+        console.log('✅ [ROUTER] Acción detectada: 🧩mostrarproductos. Yendo a flowProductos.');
+        await state.update({ ultimaConsulta: txt });
+        return gotoFlow(flowProductos); // Termina la ejecución aquí y va al flujo
     }
+
+    if (respuestaTextoIA.includes('🧩mostrardetalles')) {
+        console.log('✅ [ROUTER] Acción detectada: 🧩mostrardetalles. Yendo a flowDetallesProducto.');
+        return gotoFlow(flowDetallesProducto); // Termina la ejecución aquí
+    }
+
+    if (respuestaTextoIA.includes('🧩solicitarayuda')) {
+        console.log('✅ [ROUTER] Acción detectada: 🧩solicitarayuda.');
+        // TODO: Cambiar flowProductos por un flow de ayuda real.
+        return gotoFlow(flowProductos); // Termina la ejecución aquí
+    }
+
+    // 4. LÓGICA DE CARRITO (Lógica Nueva Preservada)
+    // Si no se cambió de flujo, SIEMPRE se intenta procesar la lógica del carrito.
+    // La función interna revisará si existe el marcador 'agregar_carrito'.
+    await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
     
-    // Se envía la respuesta final (sea de la primera o de la segunda consulta) al cliente.
+    // 5. RESPUESTA FINAL
+    // Si no se activó ningún gotoFlow, se envía la respuesta de texto al cliente.
+    console.log('➡️ [ROUTER] Ninguna acción de cambio de flujo detectada. Enviando respuesta de texto.');
     await Responder(respuestaFinal, ctx, flowDynamic, state);
     return;
 }
