@@ -37,17 +37,15 @@ import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mj
  * @param {object} state - El estado actual del bot.
  * @param {object} tools - El conjunto de herramientas del bot (ctx, flowDynamic, etc.).
  */
+// El nuevo bloque que debes pegar
 async function agregarProductoAlCarrito(respuestaIA, state, tools) {
     if (!respuestaIA || !respuestaIA.includes('🧩AGREGAR_CARRITO🧩')) {
-        return; 
+        return;
     }
 
     console.log('🛒 [CARRITO] Señal 🧩AGREGAR_CARRITO🧩 detectada. Analizando historial...');
 
-    // CORRECCIÓN CLAVE: Obtenemos el historial de la conversación desde el state
     const historial = state.get('historialMensajes') || [];
-    
-    // Tomamos los últimos 4 mensajes (2 del bot, 2 del cliente) para tener el contexto completo de la oferta y aceptación
     const contextoReciente = historial.slice(-4).map(msg => `${msg.rol}: ${msg.texto}`).join('\n');
 
     if (contextoReciente.length === 0) {
@@ -55,6 +53,7 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
         return;
     }
 
+    // El prompt extractor sigue siendo el mismo.
     const promptExtractor = `
       Eres un sistema experto en extracción de datos. Analiza el siguiente fragmento de una conversación de WhatsApp y extrae la información del ÚLTIMO producto que el cliente confirmó comprar.
 
@@ -72,22 +71,31 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
       ${contextoReciente}
       ---
     `;
-    
-    const resultadoExtraccion = await EnviarIA(promptExtractor, '', tools, {}); 
-    
+   
+    const resultadoExtraccion = await EnviarIA(promptExtractor, '', tools, {});
+   
     try {
         const jsonLimpio = resultadoExtraccion.respuesta.replace(/```json\n|```/g, '').trim();
         const productoJSON = JSON.parse(jsonLimpio);
 
-        if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio && productoJSON.sku && productoJSON.categoria) {
+        // Se valida que el JSON extraído tenga los campos esperados
+        if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio) {
             const carrito = state.get('carrito') || [];
-            
+           
+            // ***** LA CORRECCIÓN ESTÁ AQUÍ *****
+            // Mapeamos los nombres de los campos a los que espera pedidos.mjs y la hoja de cálculo.
             const nuevoProductoEnCarrito = {
-                sku: productoJSON.sku,
-                nombre: productoJSON.nombre,
-                cantidad: productoJSON.cantidad,
-                precio: productoJSON.precio,
-                categoria: productoJSON.categoria
+                SKU: productoJSON.sku || 'N/A',
+                NOMBRE_PRODUCTO: productoJSON.nombre,
+                CANTIDAD: Number(productoJSON.cantidad),
+                PRECIO_UNITARIO: Number(productoJSON.precio),
+                CATEGORIA: productoJSON.categoria || 'General',
+                // Dejamos los otros campos vacíos para que pedidos.mjs los llene si es necesario
+                OPCION_1_COLOR: '',
+                OPCION_2_TALLA: '',
+                OPCION_3_TAMANO: '',
+                OPCION_4_SABOR: '',
+                NOTA_PRODUCTO: ''
             };
 
             carrito.push(nuevoProductoEnCarrito);
@@ -99,7 +107,7 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
     } catch (e) {
         console.error('❌ [CARRITO] Error parseando JSON extraído del HISTORIAL:', resultadoExtraccion.respuesta, e);
     }
-    
+   
     return;
 }
 
