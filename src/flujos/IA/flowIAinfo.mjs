@@ -29,42 +29,55 @@ import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA 
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
 
-// --- VERSIÓN FINAL CON LIMPIEZA DE JSON ---
+// --- VERSIÓN FINAL Y DEFINITIVA CON ANÁLISIS DE HISTORIAL ---
+/**
+ * Detecta la señal 🧩AGREGAR_CARRITO🧩. Si la encuentra, analiza el historial
+ * reciente de la conversación para extraer los detalles del producto y los añade al estado.
+ * @param {string} respuestaIA - La respuesta completa de la IA.
+ * @param {object} state - El estado actual del bot.
+ * @param {object} tools - El conjunto de herramientas del bot (ctx, flowDynamic, etc.).
+ */
 async function agregarProductoAlCarrito(respuestaIA, state, tools) {
     if (!respuestaIA || !respuestaIA.includes('🧩AGREGAR_CARRITO🧩')) {
         return; 
     }
 
-    console.log('🛒 [CARRITO] Señal 🧩AGREGAR_CARRITO🧩 detectada. Proceso interno iniciado.');
+    console.log('🛒 [CARRITO] Señal 🧩AGREGAR_CARRITO🧩 detectada. Analizando historial...');
 
-    const textoParaExtraer = respuestaIA.replace(/🧩AGREGAR_CARRITO🧩/g, '').trim();
+    // CORRECCIÓN CLAVE: Obtenemos el historial de la conversación desde el state
+    const historial = state.get('historialMensajes') || [];
+    
+    // Tomamos los últimos 4 mensajes (2 del bot, 2 del cliente) para tener el contexto completo de la oferta y aceptación
+    const contextoReciente = historial.slice(-4).map(msg => `${msg.rol}: ${msg.texto}`).join('\n');
+
+    if (contextoReciente.length === 0) {
+        console.error('❌ [CARRITO] No se encontró historial para analizar.');
+        return;
+    }
+
     const promptExtractor = `
-      Eres un sistema experto en extracción de datos estructurados a partir de texto. Tu única tarea es analizar el siguiente texto, que describe un producto que un cliente desea comprar, y convertirlo en un objeto JSON.
+      Eres un sistema experto en extracción de datos. Analiza el siguiente fragmento de una conversación de WhatsApp y extrae la información del ÚLTIMO producto que el cliente confirmó comprar.
 
-      REGLAS CRÍTICAS PARA LA EXTRACCIÓN:
-      - Analiza el texto para identificar el nombre completo del producto, su SKU, la cantidad confirmada, el precio de venta final y la categoría.
-      - "sku": DEBES EXTRAER el código SKU. Es vital para la logística. Si en el texto no se menciona un SKU explícito, pero se intuye (ej. "Tratamiento 1 Mes"), usa el código que conozcas para ese producto (ej. "t1"). Si es imposible determinarlo, usa el valor "N/A".
-      - "nombre": EXTRAE el nombre completo y oficial del producto.
-      - "cantidad": EXTRAE la cantidad como un NÚMERO. Si el cliente no especifica una cantidad, DEBES asumir que es 1.
-      - "precio": EXTRAE el precio final para el cliente (usualmente el 'precio oferta'). Debe ser un NÚMERO, sin puntos, comas, "COP" o símbolos de moneda.
-      - "categoria": EXTRAE la categoría del producto. Si no se menciona explícitamente, infiérela del nombre del producto. Si es imposible, usa "General".
+      REGLAS CRÍTICAS:
+      - "sku": EXTRAE el código SKU del producto que el cliente aceptó. Si no se menciona, usa "N/A".
+      - "nombre": EXTRAE el nombre completo del producto que el cliente aceptó.
+      - "cantidad": EXTRAE la cantidad. Si no se especifica, asume 1. Debe ser un NÚMERO.
+      - "precio": EXTRAE el precio unitario final. Debe ser un NÚMERO, sin símbolos ni separadores.
+      - "categoria": EXTRAE la categoría del producto. Si no se menciona, infiérela.
 
-      Devuelve ÚNICAMENTE el objeto JSON válido. No añadas texto, explicaciones ni disculpas.
+      Devuelve ÚNICAMENTE el objeto JSON válido.
 
-      Texto a analizar:
-      "${textoParaExtraer}"
+      Fragmento de Conversación a analizar:
+      ---
+      ${contextoReciente}
+      ---
     `;
     
     const resultadoExtraccion = await EnviarIA(promptExtractor, '', tools, {}); 
     
     try {
-        // --- INICIO DE LA CORRECCIÓN ---
-        // 1. Limpiamos la respuesta de la IA para quitarle el formato Markdown ```json
         const jsonLimpio = resultadoExtraccion.respuesta.replace(/```json\n|```/g, '').trim();
-
-        // 2. Usamos la variable limpia para el parseo
         const productoJSON = JSON.parse(jsonLimpio);
-        // --- FIN DE LA CORRECCIÓN ---
 
         if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio && productoJSON.sku && productoJSON.categoria) {
             const carrito = state.get('carrito') || [];
@@ -81,15 +94,14 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
             await state.update({ carrito });
             console.log('🛒✅ [CARRITO] Producto añadido silenciosamente al estado:', nuevoProductoEnCarrito);
         } else {
-            console.error('❌ [CARRITO] El JSON extraído por la IA está incompleto:', productoJSON);
+            console.error('❌ [CARRITO] El JSON extraído del HISTORIAL por la IA está incompleto:', productoJSON);
         }
     } catch (e) {
-        console.error('❌ [CARRITO] Error parseando JSON extraído por la segunda IA:', resultadoExtraccion.respuesta, e);
+        console.error('❌ [CARRITO] Error parseando JSON extraído del HISTORIAL:', resultadoExtraccion.respuesta, e);
     }
     
     return;
 }
-// --- FIN NUEVA FUNCIÓN PARA MANEJAR CARRITO ---
 
 // === BLOQUES DE AYUDA PARA EL FLUJO Y PROMPT ===
 
