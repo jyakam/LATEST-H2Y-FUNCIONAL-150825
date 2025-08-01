@@ -325,7 +325,7 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
     }
 
     // AgruparMensaje envuelve toda la lógica para procesar el texto final (de un mensaje de texto o de un audio transcrito).
-    AgruparMensaje(detectar, async (txt) => {
+    AgruparMensaje(ctx, async (txt) => {
       // Guardar mensaje del cliente en el historial
       actualizarHistorialConversacion(txt, 'cliente', state);
       Escribiendo(ctx);
@@ -443,7 +443,7 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
       }
     }
 
-    AgruparMensaje(detectar, async (txt) => {
+    AAgruparMensaje(ctx, async (txt) => {
       // Guardar mensaje del cliente en el historial
       actualizarHistorialConversacion(txt, 'cliente', state);
       if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
