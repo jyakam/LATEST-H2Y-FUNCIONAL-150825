@@ -53,8 +53,7 @@ export const crearPedidoDesdeState = async (state, ctx) => {
         const fecha = `${ahora.getDate().toString().padStart(2, '0')}/${(ahora.getMonth() + 1).toString().padStart(2, '0')}/${ahora.getFullYear()}`;
         const hora = `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}:${ahora.getSeconds().toString().padStart(2, '0')}`;
 
-        // --- PASO 2: ARMAR EL PAQUETE DE DATOS COMPLETO ---
-        // Se incluyen TODAS las columnas, usando '' para los valores vacíos.
+       // --- PASO 2: ARMAR EL PAQUETE DE DATOS COMPLETO (VERSIÓN CORREGIDA) ---
         const datosCabecera = {
             ID_PEDIDO: idUnico,
             FECHA_PEDIDO: fecha,
@@ -73,7 +72,7 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             VALOR_ENVIO: 0,
             IMPUESTOS: 0,
             DESCUENTOS: 0,
-            VALOR__TOTAL: valorTotal,
+            VALOR_TOTAL: valorTotal, // CORREGIDO: Un solo guion bajo
             FORMA_PAGO: state.get('forma_pago') || 'Por definir',
             ESTADO_PAGO: 'Pendiente de Pago',
             SALDO_PENDIENTE: valorTotal,
@@ -83,6 +82,11 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             NOTAS_PEDIDO: '',
             NUMERO_CONSECUTIVO: numeroConsecutivo,
             NUMERO_PEDIDO_VISIBLE: numeroPedidoVisible,
+            // AÑADIDAS: Las columnas que faltaban
+            COLORES: '',
+            TALLAS: '',
+            FORMA_ENVIO: '',
+            ORDEN_ESTADO: '',
         };
         
         const datosDetalles = carrito.map((item, index) => ({
