@@ -1,4 +1,5 @@
-import fs from 'fs'
+import fs from 'fs';
+import fsPromises from 'fs/promises';
 import cron from 'node-cron' // Asegúrate de tener instalado 'node-cron'
 import path from 'path'
 const tempDir = './temp'
