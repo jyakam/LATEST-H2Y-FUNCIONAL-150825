@@ -21,8 +21,8 @@ const COLUMNAS_VALIDAS_PEDIDO = [
 
 
 /**
- * Orquesta la creación de un pedido completo a partir del estado de la conversación,
- * replicando la lógica de "blindaje" y "limpieza" de contactos.mjs.
+ * Orquesta la creación de un pedido completo a partir del estado de la conversación.
+ * Esta es la versión corregida que envía el paquete de datos completo y maneja errores de forma robusta.
  */
 export const crearPedidoDesdeState = async (state, ctx) => {
     console.log('Iniciando proceso de creación de pedido...');
@@ -40,25 +40,27 @@ export const crearPedidoDesdeState = async (state, ctx) => {
 
         const numeroConsecutivo = await obtenerSiguienteConsecutivo();
         if (numeroConsecutivo === -1) {
-            throw new Error('No se pudo obtener el número consecutivo.');
+            // Si no podemos obtener un consecutivo, detenemos todo aquí.
+            throw new Error('No se pudo obtener el número consecutivo del pedido.');
         }
 
         const idUnico = `PED-${Date.now()}`;
         const numeroPedidoVisible = `PED-${numeroConsecutivo.toString().padStart(3, '0')}`;
         const subtotal = carrito.reduce((acc, item) => acc + (item.CANTIDAD * item.PRECIO_UNITARIO), 0);
-        const valorTotal = subtotal; // Aquí puedes sumar envío, etc. en el futuro
+        const valorTotal = subtotal; // Futuro: sumar envío, etc.
 
         const ahora = new Date();
         const fecha = `${ahora.getDate().toString().padStart(2, '0')}/${(ahora.getMonth() + 1).toString().padStart(2, '0')}/${ahora.getFullYear()}`;
         const hora = `${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}:${ahora.getSeconds().toString().padStart(2, '0')}`;
 
-        // --- PASO 2: ARMAR EL PAQUETE DE DATOS COMPLETO (CON POSIBLES CAMPOS VACÍOS) ---
+        // --- PASO 2: ARMAR EL PAQUETE DE DATOS COMPLETO ---
+        // Se incluyen TODAS las columnas, usando '' para los valores vacíos.
         const datosCabecera = {
             ID_PEDIDO: idUnico,
             FECHA_PEDIDO: fecha,
             HORA_PEDIDO: hora,
             TELEFONO_REGISTRADO: ctx.from,
-            NOMBRE_COMPLETO_CLIENTE: contacto.NOMBRE || ctx.pushName,
+            NOMBRE_COMPLETO_CLIENTE: contacto.NOMBRE || ctx.pushName || '',
             DIRECCION: contacto.DIRECCION || '',
             DIRECCION_2: contacto.DIRECCION_2 || '',
             CIUDAD: contacto.CIUDAD || '',
@@ -82,21 +84,7 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             NUMERO_CONSECUTIVO: numeroConsecutivo,
             NUMERO_PEDIDO_VISIBLE: numeroPedidoVisible,
         };
-
-        // --- PASO 3: LÓGICA DE LIMPIEZA (IDÉNTICA A LA DE CONTACTOS.MJS) ---
-        // Se crea un nuevo objeto 'limpio' que solo contiene campos válidos y con valor.
-        const cabeceraLimpia = Object.fromEntries(
-            Object.entries(datosCabecera).filter(([key, value]) =>
-                COLUMNAS_VALIDAS_PEDIDO.includes(key) && // El campo debe ser uno de los permitidos
-                (
-                    (typeof value === 'string' && value.trim() !== '') || // Si es texto, no debe estar vacío
-                    typeof value === 'number' ||                         // O debe ser un número
-                    typeof value === 'boolean'                           // O debe ser un booleano
-                )
-            )
-        );
-       
-        // El paquete de detalles no necesita limpieza, ya que se arma con datos del carrito.
+        
         const datosDetalles = carrito.map((item, index) => ({
             ID_DETALLE: `${idUnico}-DET-${index + 1}`,
             ID_PEDIDO: idUnico,
@@ -114,16 +102,17 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             NOTA_PRODUCTO: item.NOTA_PRODUCTO || '',
         }));
 
-        console.log('✨ [DEBUG PEDIDO] Paquete de CABECERA (Limpio) a enviar:', JSON.stringify(cabeceraLimpia, null, 2));
+        console.log('✨ [DEBUG PEDIDO] Paquete de CABECERA (Completo) a enviar:', JSON.stringify(datosCabecera, null, 2));
         console.log('📄 [DEBUG PEDIDO] Paquete de DETALLES a enviar:', JSON.stringify(datosDetalles, null, 2));
 
-        // --- PASO 4: ENVIAR LOS DATOS LIMPIOS ---
-        await escribirCabeceraPedido(cabeceraLimpia);
+        // --- PASO 3: ENVIAR LOS DATOS CON MANEJO DE ERRORES CORRECTO ---
+        await escribirCabeceraPedido(datosCabecera);
         await escribirDetallesPedido(datosDetalles);
 
         console.log(`✅ Pedido ${numeroPedidoVisible} creado con éxito.`);
 
     } catch (error) {
-        console.error('❌ Error mayor en el proceso de creación del pedido:', error);
+        // Si algo falla (obtener consecutivo o escribir en sheets), se reporta aquí y el proceso se detiene.
+        console.error('❌ Error mayor durante el proceso de creación del pedido:', error);
     }
 };
