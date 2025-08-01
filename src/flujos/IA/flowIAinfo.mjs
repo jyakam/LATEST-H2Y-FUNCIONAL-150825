@@ -443,7 +443,7 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
       }
     }
 
-    AAgruparMensaje(ctx, async (txt) => {
+    AgruparMensaje(ctx, async (txt) => {
       // Guardar mensaje del cliente en el historial
       actualizarHistorialConversacion(txt, 'cliente', state);
       if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
