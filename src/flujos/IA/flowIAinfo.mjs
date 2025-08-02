@@ -608,15 +608,15 @@ async function Responder(res, ctx, flowDynamic, state) {
     const yaRespondido = state.get('ultimaRespuestaSimple') || '';
     let nuevaRespuesta = res.respuesta.trim();
 
-    // 🔴🔴🔴 LIMPIEZA DE MARCADORES INTERNOS (emoji + clave + texto extra) 🔴🔴🔴
-    nuevaRespuesta = nuevaRespuesta.replace(/🧩[A-Za-z0-9_]+🧩|\[.*?: [^\]]+\]/gi, '').trim();
+ // 🔴🔴🔴 LIMPIEZZA DE MARCADORES INTERNOS (emoji + clave + texto extra) 🔴🔴🔴
+    nuevaRespuesta = nuevaRespuesta.replace(/🧩[A-Z0-9_]+(\[.*?\])?🧩/gi, '').trim();
 
-    // Opcional: Log para ver si hubo marcadores eliminados
-    if (nuevaRespuesta !== res.respuesta.trim()) {
-      console.log('⚠️ [FILTRO] Se eliminó un marcador interno de la respuesta IA.');
-    }
+    // Opcional: Log para ver si hubo marcadores eliminados
+    if (nuevaRespuesta !== res.respuesta.trim()) {
+      console.log('⚠️ [FILTRO] Se eliminó un marcador interno de la respuesta IA.');
+    }
 
-    const nuevaRespuestaComparar = nuevaRespuesta.toLowerCase();
+    const nuevaRespuestaComparar = nuevaRespuesta.toLowerCase();
 
     if (nuevaRespuestaComparar && nuevaRespuestaComparar === yaRespondido) {
       console.log('⚡ Respuesta ya fue enviada antes, evitando repetición.');
