@@ -198,6 +198,19 @@ export function extraerNombreProductoDeVision(texto) {
   return texto
 }
 
+// Esta función usa la IA para verificar si una imagen es un comprobante de pago
+async function esComprobanteDePagoIA(fileBuffer) {
+    try {
+        const prompt = 'Analiza esta imagen y responde únicamente con "true" si parece ser un comprobante de pago, un recibo o una captura de pantalla de una transferencia bancaria, o "false" si no lo es.';
+        // Asumiendo que tienes una función para enviar imágenes a OpenAI que devuelve texto
+        const respuestaTexto = await enviarImagenProductoOpenAI(fileBuffer, prompt); 
+        return respuestaTexto.toLowerCase().includes('true');
+    } catch (error) {
+        console.error('❌ Error en esComprobanteDePagoIA:', error);
+        return false;
+    }
+}
+
 export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, tools) => {
     // 🎙️ MICROFONO DE DIAGNÓSTICO 1 - INICIO DE NUEVA CONVERSACIÓN
@@ -307,22 +320,26 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
     await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     const detectar = await DetectarArchivos(ctx, state);
 
-    if (state.get('tipoMensaje') === 1) { // Si es una imagen
-      const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
-      let resultado = '';
-      if (imagenes?.length > 0) {
-        const fileBuffer = fs.readFileSync(imagenes[0].ruta);
-        resultado = await enviarImagenProductoOpenAI(fileBuffer);
-        resultado = extraerNombreProductoDeVision(resultado);
-      }
-      if (resultado && resultado !== '' && resultado !== 'No es un producto') {
-        await state.update({
-          productoDetectadoEnImagen: true,
-          productoReconocidoPorIA: resultado
-        });
-        console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
-      }
-    }
+    // DESPUÉS (El nuevo código mejorado)
+    if (state.get('tipoMensaje') === 1) { // Si es una imagen
+        const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
+        if (imagenes?.length > 0) {
+            const fileBuffer = fs.readFileSync(imagenes[0].ruta);
+            
+            // --- LÓGICA NUEVA: VERIFICAR SI ES COMPROBANTE DE PAGO ---
+            if (await esComprobanteDePagoIA(fileBuffer)) {
+                await state.update({ estado_pago: 'Comprobante Enviado' });
+                console.log('🧾 [PAGO] La imagen es un comprobante. Estado actualizado a "Comprobante Enviado".');
+            } else {
+                // Si no es comprobante, hace lo que hacía antes (reconocer producto)
+                const resultado = extraerNombreProductoDeVision(await enviarImagenProductoOpenAI(fileBuffer));
+                if (resultado && resultado !== '' && resultado !== 'No es un producto') {
+                    await state.update({ productoDetectadoEnImagen: true, productoReconocidoPorIA: resultado });
+                    console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
+                }
+            }
+        }
+    }
 
     // AgruparMensaje envuelve toda la lógica para procesar el texto final (de un mensaje de texto o de un audio transcrito).
     AgruparMensaje(ctx, async (txt) => {
@@ -426,23 +443,27 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
     await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     const detectar = await DetectarArchivos(ctx, state);
 
-    if (state.get('tipoMensaje') === 1) { // Si es una imagen
-      const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
-      let resultado = '';
-      if (imagenes?.length > 0) {
-        const fileBuffer = fs.readFileSync(imagenes[0].ruta);
-        resultado = await enviarImagenProductoOpenAI(fileBuffer);
-        resultado = extraerNombreProductoDeVision(resultado);
-      }
-      if (resultado && resultado !== '' && resultado !== 'No es un producto') {
-        await state.update({
-          productoDetectadoEnImagen: true,
-          productoReconocidoPorIA: resultado
-        });
-        console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
-      }
-    }
-
+    // DESPUÉS (El nuevo código mejorado)
+    if (state.get('tipoMensaje') === 1) { // Si es una imagen
+        const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
+        if (imagenes?.length > 0) {
+            const fileBuffer = fs.readFileSync(imagenes[0].ruta);
+            
+            // --- LÓGICA NUEVA: VERIFICAR SI ES COMPROBANTE DE PAGO ---
+            if (await esComprobanteDePagoIA(fileBuffer)) {
+                await state.update({ estado_pago: 'Comprobante Enviado' });
+                console.log('🧾 [PAGO] La imagen es un comprobante. Estado actualizado a "Comprobante Enviado".');
+            } else {
+                // Si no es comprobante, hace lo que hacía antes (reconocer producto)
+                const resultado = extraerNombreProductoDeVision(await enviarImagenProductoOpenAI(fileBuffer));
+                if (resultado && resultado !== '' && resultado !== 'No es un producto') {
+                    await state.update({ productoDetectadoEnImagen: true, productoReconocidoPorIA: resultado });
+                    console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
+                }
+            }
+        }
+    }
+     
     AgruparMensaje(ctx, async (txt) => {
       // Guardar mensaje del cliente en el historial
       actualizarHistorialConversacion(txt, 'cliente', state);
@@ -535,34 +556,45 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
     
     // --- INICIO DE LA LÓGICA DE FUSIÓN ---
 
-    const respuestaTextoIA = respuestaFinal.respuesta?.toLowerCase?.() || '';
-    console.log('🧠 [ROUTER] Analizando respuesta final de IA para acciones:', respuestaTextoIA);
+    // OBTENEMOS EL TEXTO FINAL DE LA RESPUESTA DE LA IA
+    const respuestaTextoIA = respuestaFinal.respuesta || '';
+    
+    // --- NUEVA LÓGICA: DETECTAR FORMA DE PAGO ---
+    const matchFormaPago = respuestaTextoIA.match(/🧩FORMA_PAGO\[(.*?)\]🧩/);
+    if (matchFormaPago && matchFormaPago[1]) {
+        const formaPago = matchFormaPago[1];
+        await state.update({ forma_pago: formaPago });
+        console.log(`💰 [PAGO] Forma de pago guardada en memoria: ${formaPago}`);
+    }
+    // --- FIN DE LÓGICA NUEVA ---
 
-    // 3. ROUTER DE PRODUCTOS (Lógica Antigua Restaurada)
+    const respuestaTextoIA_lower = respuestaTextoIA.toLowerCase();
+    console.log('🧠 [ROUTER] Analizando respuesta final de IA para acciones:', respuestaTextoIA_lower);
+
+    // 3. ROUTER DE PRODUCTOS (Lógica Antigua Restaurada) - INTACTO
     // Revisa si la IA está pidiendo una acción que cambie de flujo.
-    if (respuestaTextoIA.includes('🧩mostrarproductos')) {
+    if (respuestaTextoIA_lower.includes('🧩mostrarproductos')) {
         console.log('✅ [ROUTER] Acción detectada: 🧩mostrarproductos. Yendo a flowProductos.');
         await state.update({ ultimaConsulta: txt });
         return gotoFlow(flowProductos); // Termina la ejecución aquí y va al flujo
     }
 
-    if (respuestaTextoIA.includes('🧩mostrardetalles')) {
+    if (respuestaTextoIA_lower.includes('🧩mostrardetalles')) {
         console.log('✅ [ROUTER] Acción detectada: 🧩mostrardetalles. Yendo a flowDetallesProducto.');
         return gotoFlow(flowDetallesProducto); // Termina la ejecución aquí
     }
 
-    if (respuestaTextoIA.includes('🧩solicitarayuda')) {
+    if (respuestaTextoIA_lower.includes('🧩solicitarayuda')) {
         console.log('✅ [ROUTER] Acción detectada: 🧩solicitarayuda.');
         // TODO: Cambiar flowProductos por un flow de ayuda real.
         return gotoFlow(flowProductos); // Termina la ejecución aquí
     }
 
-    // 4. LÓGICA DE CARRITO (Lógica Nueva Preservada)
+    // 4. LÓGICA DE CARRITO (Lógica Nueva Preservada) - INTACTO
     // Si no se cambió de flujo, SIEMPRE se intenta procesar la lógica del carrito.
-    // La función interna revisará si existe el marcador 'agregar_carrito'.
     await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
     
-    // 5. RESPUESTA FINAL
+    // 5. RESPUESTA FINAL - INTACTO
     // Si no se activó ningún gotoFlow, se envía la respuesta de texto al cliente.
     console.log('➡️ [ROUTER] Ninguna acción de cambio de flujo detectada. Enviando respuesta de texto.');
     await Responder(respuestaFinal, ctx, flowDynamic, state);
