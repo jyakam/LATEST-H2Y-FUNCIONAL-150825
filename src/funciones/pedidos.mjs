@@ -75,7 +75,7 @@ export const crearPedidoDesdeState = async (state, ctx) => {
             DESCUENTOS: 0,
             VALOR_TOTAL: valorTotal, // CORREGIDO: Un solo guion bajo
             FORMA_PAGO: state.get('forma_pago') || 'Por definir',
-            ESTADO_PAGO: 'Pendiente de Pago',
+ESTADO_PAGO: state.get('estado_pago') || 'Pendiente de Pago',
             SALDO_PENDIENTE: valorTotal,
             TRANSPORTADORA: '',
             GUIA_TRANSPORTE: '',
