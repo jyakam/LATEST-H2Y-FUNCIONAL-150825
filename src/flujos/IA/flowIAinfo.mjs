@@ -43,9 +43,56 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
         return;
     }
 
-    console.log('🛒 [CARRITO] Señal 🧩AGREGAR_CARRITO🧩 detectada. Analizando historial...');
-
+    console.log('🛒 [CARRITO] Señal 🧩AGREGAR_CARRITO🧩 detectada.');
+    const productosOfrecidos = state.get('productosOfrecidos') || [];
     const historial = state.get('historialMensajes') || [];
+    const ultimoMensajeCliente = historial.filter(h => h.rol === 'cliente').pop()?.texto || '';
+
+    // --- INICIO: NUEVO MÉTODO INTELIGENTE (SELECTOR DE MEMORIA) ---
+    if (productosOfrecidos.length > 0 && ultimoMensajeCliente) {
+        console.log('🧠 [CARRITO] Usando memoria de productos ofrecidos para seleccionar.');
+        const listaParaIA = productosOfrecidos.map((p, index) => `${index + 1}. ${p.nombre} (Precio: ${p.precio})`).join('\n');
+
+        const promptSelector = `
+            Un cliente quiere comprar un producto de la siguiente lista. Basado en su último mensaje, ¿cuál producto eligió?
+
+            Último mensaje del cliente: "${ultimoMensajeCliente}"
+            ---
+            Lista de productos ofrecidos:
+            ${listaParaIA}
+            ---
+            Responde ÚNICAMENTE con el NÚMERO del producto elegido. Si no estás seguro, responde "0".
+        `;
+        
+        const resultadoSeleccion = await EnviarIA(promptSelector, '', tools, {});
+        const seleccion = parseInt(resultadoSeleccion.respuesta.trim(), 10);
+
+        if (!isNaN(seleccion) && seleccion > 0 && productosOfrecidos[seleccion - 1]) {
+            const productoSeleccionado = productosOfrecidos[seleccion - 1];
+            
+            const nuevoProductoEnCarrito = {
+                SKU: productoSeleccionado.sku || 'N/A',
+                NOMBRE_PRODUCTO: productoSeleccionado.nombre,
+                CANTIDAD: 1,
+                PRECIO_UNITARIO: Number(productoSeleccionado.precio),
+                CATEGORIA: productoSeleccionado.categoria || 'General',
+                OPCION_1_COLOR: '', OPCION_2_TALLA: '', OPCION_3_TAMANO: '', OPCION_4_SABOR: '', NOTA_PRODUCTO: ''
+            };
+
+            const carrito = state.get('carrito') || [];
+            carrito.push(nuevoProductoEnCarrito);
+            await state.update({ carrito });
+            console.log('🛒✅ [CARRITO] Producto añadido desde la MEMORIA:', nuevoProductoEnCarrito);
+            return; // Termina la función con éxito
+        } else {
+            console.log('⚠️ [CARRITO] El selector IA no pudo determinar el producto desde la memoria. Usando método de respaldo.');
+        }
+    }
+    // --- FIN: NUEVO MÉTODO INTELIGENTE ---
+
+
+    // --- INICIO: MÉTODO DE RESPALDO (TU CÓDIGO ORIGINAL) ---
+    console.log(' fallback [CARRITO] Analizando historial como método de respaldo...');
     const contextoReciente = historial.slice(-4).map(msg => `${msg.rol}: ${msg.texto}`).join('\n');
 
     if (contextoReciente.length === 0) {
@@ -53,62 +100,48 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
         return;
     }
 
-    // El prompt extractor sigue siendo el mismo.
     const promptExtractor = `
       Eres un sistema experto en extracción de datos. Analiza el siguiente fragmento de una conversación de WhatsApp y extrae la información del ÚLTIMO producto que el cliente confirmó comprar.
-
       REGLAS CRÍTICAS:
-      - "sku": EXTRAE el código SKU del producto que el cliente aceptó. Si no se menciona, usa "N/A".
-      - "nombre": EXTRAE el nombre completo del producto que el cliente aceptó.
+      - "sku": EXTRAE el código SKU. Si no se menciona, usa "N/A".
+      - "nombre": EXTRAE el nombre completo del producto.
       - "cantidad": EXTRAE la cantidad. Si no se especifica, asume 1. Debe ser un NÚMERO.
-      - "precio": EXTRAE el precio unitario final. Debe ser un NÚMERO, sin símbolos ni separadores.
-      - "categoria": EXTRAE la categoría del producto. Si no se menciona, infiérela.
-
+      - "precio": EXTRAE el precio unitario final. Debe ser un NÚMERO, sin símbolos.
+      - "categoria": EXTRAE la categoría del producto.
       Devuelve ÚNICAMENTE el objeto JSON válido.
-
       Fragmento de Conversación a analizar:
       ---
       ${contextoReciente}
       ---
     `;
-   
+    
     const resultadoExtraccion = await EnviarIA(promptExtractor, '', tools, {});
-   
+    
     try {
         const jsonLimpio = resultadoExtraccion.respuesta.replace(/```json\n|```/g, '').trim();
         const productoJSON = JSON.parse(jsonLimpio);
 
-        // Se valida que el JSON extraído tenga los campos esperados
         if (productoJSON.nombre && productoJSON.cantidad && productoJSON.precio) {
             const carrito = state.get('carrito') || [];
-           
-            // ***** LA CORRECCIÓN ESTÁ AQUÍ *****
-            // Mapeamos los nombres de los campos a los que espera pedidos.mjs y la hoja de cálculo.
             const nuevoProductoEnCarrito = {
                 SKU: productoJSON.sku || 'N/A',
                 NOMBRE_PRODUCTO: productoJSON.nombre,
                 CANTIDAD: Number(productoJSON.cantidad),
                 PRECIO_UNITARIO: Number(productoJSON.precio),
                 CATEGORIA: productoJSON.categoria || 'General',
-                // Dejamos los otros campos vacíos para que pedidos.mjs los llene si es necesario
-                OPCION_1_COLOR: '',
-                OPCION_2_TALLA: '',
-                OPCION_3_TAMANO: '',
-                OPCION_4_SABOR: '',
-                NOTA_PRODUCTO: ''
+                OPCION_1_COLOR: '', OPCION_2_TALLA: '', OPCION_3_TAMANO: '', OPCION_4_SABOR: '', NOTA_PRODUCTO: ''
             };
 
             carrito.push(nuevoProductoEnCarrito);
             await state.update({ carrito });
-            console.log('🛒✅ [CARRITO] Producto añadido silenciosamente al estado:', nuevoProductoEnCarrito);
+            console.log('🛒✅ [CARRITO] Producto añadido silenciosamente desde el HISTORIAL:', nuevoProductoEnCarrito);
         } else {
             console.error('❌ [CARRITO] El JSON extraído del HISTORIAL por la IA está incompleto:', productoJSON);
         }
     } catch (e) {
         console.error('❌ [CARRITO] Error parseando JSON extraído del HISTORIAL:', resultadoExtraccion.respuesta, e);
     }
-   
-    return;
+    // --- FIN: MÉTODO DE RESPALDO ---
 }
 
 // === BLOQUES DE AYUDA PARA EL FLUJO Y PROMPT ===
@@ -525,6 +558,7 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
 
 // En el archivo: src/flujos/IA/flowIAinfo.mjs
 // -------- NUEVA Y DEFINITIVA FUNCIÓN MANEJARRESPUESTAIA (PEGAR ESTA) --------
+// Reemplaza tu función manejarRespuestaIA con esta versión final y completa
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
     const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
 
@@ -544,7 +578,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
         const bloques = ARCHIVO.PROMPT_BLOQUES;
         const nuevoPromptSistema = armarPromptOptimizado(state, bloques);
-        const contactoCache = Cache.getContactoByTelefono(ctx.from);
+        const contactoCache = getContactoByTelefono(ctx.from); // Corregido para usar la función importada
         const estado = {
             esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
             contacto: contactoCache || {}
@@ -559,43 +593,59 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
     // OBTENEMOS EL TEXTO FINAL DE LA RESPUESTA DE LA IA
     const respuestaTextoIA = respuestaFinal.respuesta || '';
     
-    // --- NUEVA LÓGICA: DETECTAR FORMA DE PAGO ---
+    // --- INICIO: LÓGICA AÑADIDA ---
+    // 1. "TOMAR APUNTES" DE PRODUCTOS OFRECIDOS
+    const productosOfrecidos = state.get('productosOfrecidos') || [];
+    const matchesProductos = [...respuestaTextoIA.matchAll(/🧩PRODUCTO_OFRECIDO\[(.*?)\]🧩/g)];
+    
+    if (matchesProductos.length > 0) {
+        console.log(`📝 [MEMORIA] Detectados ${matchesProductos.length} productos ofrecidos para memorizar.`);
+        for (const match of matchesProductos) {
+            try {
+                const productoJSON = JSON.parse(match[1]);
+                if (!productosOfrecidos.some(p => p.sku === productoJSON.sku)) {
+                    productosOfrecidos.push(productoJSON);
+                }
+            } catch (e) {
+                console.error('❌ Error parseando JSON de PRODUCTO_OFRECIDO:', match[1]);
+            }
+        }
+        await state.update({ productosOfrecidos: productosOfrecidos.slice(-5) }); // Guarda solo los últimos 5
+    }
+
+    // 2. DETECTAR FORMA DE PAGO
     const matchFormaPago = respuestaTextoIA.match(/🧩FORMA_PAGO\[(.*?)\]🧩/);
     if (matchFormaPago && matchFormaPago[1]) {
         const formaPago = matchFormaPago[1];
         await state.update({ forma_pago: formaPago });
         console.log(`💰 [PAGO] Forma de pago guardada en memoria: ${formaPago}`);
     }
-    // --- FIN DE LÓGICA NUEVA ---
+    // --- FIN: LÓGICA AÑADIDA ---
 
     const respuestaTextoIA_lower = respuestaTextoIA.toLowerCase();
     console.log('🧠 [ROUTER] Analizando respuesta final de IA para acciones:', respuestaTextoIA_lower);
 
     // 3. ROUTER DE PRODUCTOS (Lógica Antigua Restaurada) - INTACTO
-    // Revisa si la IA está pidiendo una acción que cambie de flujo.
     if (respuestaTextoIA_lower.includes('🧩mostrarproductos')) {
         console.log('✅ [ROUTER] Acción detectada: 🧩mostrarproductos. Yendo a flowProductos.');
         await state.update({ ultimaConsulta: txt });
-        return gotoFlow(flowProductos); // Termina la ejecución aquí y va al flujo
+        return gotoFlow(flowProductos);
     }
 
     if (respuestaTextoIA_lower.includes('🧩mostrardetalles')) {
         console.log('✅ [ROUTER] Acción detectada: 🧩mostrardetalles. Yendo a flowDetallesProducto.');
-        return gotoFlow(flowDetallesProducto); // Termina la ejecución aquí
+        return gotoFlow(flowDetallesProducto);
     }
 
     if (respuestaTextoIA_lower.includes('🧩solicitarayuda')) {
         console.log('✅ [ROUTER] Acción detectada: 🧩solicitarayuda.');
-        // TODO: Cambiar flowProductos por un flow de ayuda real.
-        return gotoFlow(flowProductos); // Termina la ejecución aquí
+        return gotoFlow(flowProductos); // TODO: Cambiar por flow de ayuda real
     }
 
     // 4. LÓGICA DE CARRITO (Lógica Nueva Preservada) - INTACTO
-    // Si no se cambió de flujo, SIEMPRE se intenta procesar la lógica del carrito.
     await agregarProductoAlCarrito(respuestaFinal.respuesta, state, tools);
     
     // 5. RESPUESTA FINAL - INTACTO
-    // Si no se activó ningún gotoFlow, se envía la respuesta de texto al cliente.
     console.log('➡️ [ROUTER] Ninguna acción de cambio de flujo detectada. Enviando respuesta de texto.');
     await Responder(respuestaFinal, ctx, flowDynamic, state);
     return;
