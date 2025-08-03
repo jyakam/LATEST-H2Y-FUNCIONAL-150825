@@ -243,7 +243,7 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     if (!contacto) {
       console.log(`🔄 [IAINFO] Contacto no encontrado, intentando recargar caché`)
       await Cache.cargarContactosDesdeAppSheet()
-      contacto = getContactoByTelefono(phone)
+      contacto = Cache.getContactoByTelefono(phone)
       console.log('🔍 [DEBUG] Contacto después de recargar caché:', contacto)
       console.log(`🔍 [IAINFO] Contacto tras recargar caché:`, contacto)
     }
@@ -252,7 +252,7 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
       console.log(`🆕 [IAINFO] Creando contacto nuevo para: ${phone}`)
       try {
         await ActualizarContacto(phone, { NOMBRE: 'Sin Nombre', RESP_BOT: 'Sí', ETIQUETA: 'Nuevo' })
-        contacto = getContactoByTelefono(phone)
+        contacto = Cache.getContactoByTelefono(phone)
         console.log(`🔍 [IAINFO] Contacto tras ActualizarContacto:`, contacto)
         if (!contacto) {
           console.warn(`⚠️ [IAINFO] Contacto ${phone} no encontrado, creando localmente`)
@@ -265,7 +265,7 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
             FECHA_ULTIMO_CONTACTO: new Date().toLocaleDateString('es-CO')
           }
          Cache.actualizarContactoEnCache(contactoLocal)
-          contacto = getContactoByTelefono(phone)
+          contacto = Cache.getContactoByTelefono(phone)
           console.log(`🔍 [IAINFO] Contacto tras creación local:`, contacto)
         }
         if (!contacto) {
@@ -427,7 +427,7 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
     if (esDatosContacto) {
       console.log("🛡️ [FLOWIAINFO][capture] Se va a actualizar contacto. Contacto en cache:", contacto);
       await verificarYActualizarContactoSiEsNecesario(message, phone, contacto, datos);
-      contacto = getContactoByTelefono(phone);
+      contacto = Cache.getContactoByTelefono(phone);
     }
 
     // Actualiza fechas de contacto SIEMPRE
