@@ -236,13 +236,13 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
     }
 
     console.log('📩 [IAINFO] Mensaje recibido de:', phone)
-    console.log(`🔍 [IAINFO] Estado inicial de la caché: ${getCacheContactos().length} contactos`)
+    console.log(`🔍 [IAINFO] Estado inicial de la caché: ${Cache.getCacheContactos().length} contactos`)
 
     // ------ BLOQUE DE CONTACTOS: SIEMPRE SE EJECUTA ------
-    let contacto = getContactoByTelefono(phone)
+    let contacto = Cache.getContactoByTelefono(phone)
     if (!contacto) {
       console.log(`🔄 [IAINFO] Contacto no encontrado, intentando recargar caché`)
-      await cargarContactosDesdeAppSheet()
+      await Cache.cargarContactosDesdeAppSheet()
       contacto = getContactoByTelefono(phone)
       console.log('🔍 [DEBUG] Contacto después de recargar caché:', contacto)
       console.log(`🔍 [IAINFO] Contacto tras recargar caché:`, contacto)
@@ -264,7 +264,7 @@ export const flowIAinfo = addKeyword(EVENTS.WELCOME)
             FECHA_PRIMER_CONTACTO: new Date().toLocaleDateString('es-CO'),
             FECHA_ULTIMO_CONTACTO: new Date().toLocaleDateString('es-CO')
           }
-          actualizarContactoEnCache(contactoLocal)
+         Cache.actualizarContactoEnCache(contactoLocal)
           contacto = getContactoByTelefono(phone)
           console.log(`🔍 [IAINFO] Contacto tras creación local:`, contacto)
         }
@@ -411,7 +411,7 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
 
     console.log('🟢 [IAINFO] Estado actual: PASO', state.get('pasoFlujoActual') + 1, ', seccionesActivas:', state.get('seccionesActivas') || []);
 
-    let contacto = getContactoByTelefono(phone);
+    let contacto = Cache.getContactoByTelefono(phone);
     const datos = {};
 
     // Detecta y guarda nombre/email si está presente literal
