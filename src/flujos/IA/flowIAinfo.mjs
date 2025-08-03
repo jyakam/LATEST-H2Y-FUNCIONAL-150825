@@ -190,7 +190,7 @@ function armarPromptOptimizado(state, bloques, opciones = {}) {
 }
 
 // IMPORTANTE: Cache de contactos (nuevo sistema)
-import { getContactoByTelefono, getCacheContactos, actualizarContactoEnCache, cargarContactosDesdeAppSheet } from '../../funciones/helpers/cacheContactos.mjs'
+import * as Cache from '../../funciones/helpers/cacheContactos.mjs'
 
 export function extraerNombreProductoDeVision(texto) {
   const match = texto.match(/["“](.*?)["”]/)
