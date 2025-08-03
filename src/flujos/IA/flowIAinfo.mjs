@@ -544,7 +544,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
         const bloques = ARCHIVO.PROMPT_BLOQUES;
         const nuevoPromptSistema = armarPromptOptimizado(state, bloques);
-        const contactoCache = getContactoByTelefono(ctx.from);
+        const contactoCache = Cache.getContactoByTelefono(ctx.from);
         const estado = {
             esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
             contacto: contactoCache || {}
