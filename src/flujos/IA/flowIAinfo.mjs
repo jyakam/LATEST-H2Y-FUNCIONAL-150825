@@ -560,6 +560,7 @@ console.log('🐞 [DEBUG FECHAS] Objeto "contacto" a enviar:', JSON.stringify(co
 // -------- NUEVA Y DEFINITIVA FUNCIÓN MANEJARRESPUESTAIA (PEGAR ESTA) --------
 // Reemplaza tu función manejarRespuestaIA con esta versión final y completa
 async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt) {
+    const phone = ctx.from.split('@')[0];
     const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
 
     console.log('🔄 [MANEJAR_IA] Iniciando procesamiento de respuesta...');
@@ -578,7 +579,7 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         console.log(`➡️ [TRANSICIÓN] Detectado cambio de PASO ${pasoAnterior + 1} a PASO ${pasoNuevo + 1}. Se requiere re-consulta.`);
         const bloques = ARCHIVO.PROMPT_BLOQUES;
         const nuevoPromptSistema = armarPromptOptimizado(state, bloques);
-        const contactoCache = getContactoByTelefono(ctx.from); // Corregido para usar la función importada
+        const contactoCache = Cache.getContactoByTelefono(phone);
         const estado = {
             esClienteNuevo: !contactoCache || contactoCache.NOMBRE === 'Sin Nombre',
             contacto: contactoCache || {}
