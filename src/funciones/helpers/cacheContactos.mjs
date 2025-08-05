@@ -35,7 +35,7 @@ export async function cargarContactosDesdeAppSheet() {
 
 export function getContactoByTelefono(telefono) {
   const normalizedTelefono = telefono.replace(/^\+/, '');
-  console.log(`🔍 [CACHE_CONTACTOS] Buscando ${normalizedTelefono} en caché con ${CACHE.LISTA_CONTACTOS.length} contactos`);
+ // console.log(`🔍 [CACHE_CONTACTOS] Buscando ${normalizedTelefono} en caché con ${CACHE.LISTA_CONTACTOS.length} contactos`);
   const contacto = CACHE.LISTA_CONTACTOS.find(c => {
     const normalizedCTelefono = c.TELEFONO ? c.TELEFONO.replace(/^\+/, '') : '';
     return normalizedCTelefono === normalizedTelefono;
