@@ -1,96 +1,92 @@
-// src/flujos/bloques/EnviarIA.mjs
-import fs from 'fs'
-import { BOT } from '../../config/bot.mjs'
-import { ENUM_TIPO_ARCHIVO } from './detectarArchivos.mjs'
-import { EnviarTextoOpenAI } from '../../APIs/OpenAi/enviarTextoOpenAI.mjs'
-import { EnviarImagenOpenAI } from '../../APIs/OpenAi/enviarImagenOpenAI.mjs'
-import { convertOggToMp3 } from '../../funciones/convertirMp3.mjs'
-import { EnviarAudioOpenAI } from '../../APIs/OpenAi/enviarAudioOpenAI.mjs'
+import fs from 'fs';
+import { BOT } from '../../config/bot.mjs';
+import { ENUM_TIPO_ARCHIVO } from './detectarArchivos.mjs';
+import { EnviarTextoOpenAI } from '../../APIs/OpenAi/enviarTextoOpenAI.mjs';
+import { EnviarImagenOpenAI } from '../../APIs/OpenAi/enviarImagenOpenAI.mjs';
+import { convertOggToMp3 } from '../../funciones/convertirMp3.mjs';
+import { EnviarAudioOpenAI } from '../../APIs/OpenAi/enviarAudioOpenAI.mjs';
 
 export async function EnviarIA(msj, guion, funciones, estado = {}) {
-  const tipoMensaje = funciones.state.get('tipoMensaje')
-  const promptExtra = funciones.promptExtra || ''
+    const tipoMensaje = funciones.state.get('tipoMensaje');
+    const promptExtra = funciones.promptExtra || '';
 
-  const mensajeFinal = promptExtra ? `${promptExtra}\n\n${msj}` : msj
-
-  console.log('📊 [AUDITORIA] → Inicia EnviarIA()')
-  console.log('📊 [AUDITORIA] Tipo de mensaje:', tipoMensaje)
-  console.log('📊 [AUDITORIA] Prompt extra incluido:', !!promptExtra)
-  // console.log('📊 [AUDITORIA] Estado cliente:', estado)
-
-  // --- 📸 IMAGEN ---
-  if (tipoMensaje === ENUM_TIPO_ARCHIVO.IMAGEN) {
-    console.log('📤 🌄 Enviando imagen a OpenAI...')
-    const objeto = { role: 'user', content: [{ type: 'text', text: msj }] }
-
-    const datos = funciones.state.get('archivos') || []
-    const imagenes = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.IMAGEN)
-
-    for (const img of imagenes) {
-      const imagenBase64 = fs.readFileSync(img.ruta, { encoding: 'base64' })
-      objeto.content.push({
-        type: 'image_url',
-        image_url: {
-          url: `data:image/jpeg;base64,${imagenBase64}`,
-          detail: BOT.CALIDA_IMAGENES
-        }
-      })
+    // --- INICIO: LÓGICA MEJORADA ---
+    // 1. Se valida que el contexto sea un texto.
+    let contextoAdicional = '';
+    if (estado.contextoAdicional && typeof estado.contextoAdicional === 'string') {
+        contextoAdicional = estado.contextoAdicional;
     }
 
-       // En vez de limpiar TODO el state, solo borra archivos temporales:
-    await funciones.state.update({
-      archivos: [],
-      tipoMensaje: undefined
-    });
-    const res = await EnviarImagenOpenAI(objeto, funciones.ctx.from, guion, estado)
-    console.log('📥 RESPUESTA IA IMAGEN:', res)
-    return res
-  }
+    // 2. Se unifica la construcción del mensaje final.
+    const mensajeFinal = `${contextoAdicional} ${promptExtra} ${msj}`.trim().replace(/\s+/g, ' ');
+    // --- FIN: LÓGICA MEJORADA ---
 
-  // --- 🎙️ AUDIO ---
-if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
-  console.log('📤 🎵 Enviando nota de voz a OpenAI...')
-  const mensaje = []
-  const datos = funciones.state.get('archivos') || []
-  const audios = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.NOTA_VOZ)
 
-  for (const aud of audios) {
-    const id = generateUniqueFileName('mp3')
-    const mp3 = await convertOggToMp3(aud.ruta, id, BOT.VELOCIDAD)
-    const txt = await EnviarAudioOpenAI(mp3)
-    mensaje.push(txt)
-  }
+    // --- INICIO: LOGS DE AUDITORÍA RESTAURADOS ---
+    console.log('📊 [AUDITORIA] → Inicia EnviarIA()');
+    console.log('📊 [AUDITORIA] Tipo de mensaje:', tipoMensaje);
+    console.log('📊 [AUDITORIA] Prompt extra incluido:', !!promptExtra);
+    // console.log('📊 [AUDITORIA] Estado cliente:', estado); // Mantenemos este comentado como acordamos
+    if (contextoAdicional) {
+        console.log(`🗣️ [CONTEXTO] Se usará contexto adicional: "${contextoAdicional}"`);
+    }
+    // --- FIN: LOGS DE AUDITORÍA RESTAURADOS ---
 
-   // En vez de limpiar TODO el state, solo borra archivos temporales:
-  await funciones.state.update({
-    archivos: [],
-    tipoMensaje: undefined
-  });
-  const final = `${promptExtra}\n${mensaje.join('\n')}`
 
-  console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (AUDIO):\n', final)
-  console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]')
+    // --- 📸 IMAGEN ---
+    if (tipoMensaje === ENUM_TIPO_ARCHIVO.IMAGEN) {
+        console.log('📤 🌄 Enviando imagen a OpenAI...');
+        const objeto = { role: 'user', content: [{ type: 'text', text: mensajeFinal }] };
+        const datos = funciones.state.get('archivos') || [];
+        const imagenes = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.IMAGEN);
 
-  const res = await EnviarTextoOpenAI(final, funciones.ctx.from, guion, estado)
-  console.log('📥 RESPUESTA IA AUDIO:', res)
-  return res
-}
+        for (const img of imagenes) {
+            const imagenBase64 = fs.readFileSync(img.ruta, { encoding: 'base64' });
+            objeto.content.push({
+                type: 'image_url',
+                image_url: { url: `data:image/jpeg;base64,${imagenBase64}`, detail: BOT.CALIDA_IMAGENES }
+            });
+        }
+        await funciones.state.update({ archivos: [], tipoMensaje: undefined });
+        const res = await EnviarImagenOpenAI(objeto, funciones.ctx.from, guion, estado);
+        console.log('📥 RESPUESTA IA IMAGEN:', res); // LOG RESTAURADO
+        return res;
+    }
 
-  // --- 📝 TEXTO NORMAL ---
-console.log('📤 📄 Enviando texto plano:', msj)
-// Opción 1: Solo comenta la línea
-// console.log('🧠 MENSAJE FINAL COMPLETO A LA IA (TEXTO):\n', mensajeFinal)
-// Opción 2: Solo muestra los primeros 50 caracteres
-console.log('🧠 [SNIP] Inicio del MENSAJE FINAL A LA IA:', mensajeFinal.substring(0, 50) + '...')
-console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]')
+    // --- 🎙️ AUDIO ---
+    if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
+        console.log('📤 🎵 Transcribiendo nota de voz...');
+        const datos = funciones.state.get('archivos') || [];
+        const audios = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.NOTA_VOZ);
+        let textoDeAudio = '';
 
-  const res = await EnviarTextoOpenAI(mensajeFinal, funciones.ctx.from, guion, estado)
-  console.log('📥 RESPUESTA IA TEXTO:', res)
-  return res
+        for (const aud of audios) {
+            const id = generateUniqueFileName('mp3');
+            const mp3 = await convertOggToMp3(aud.ruta, id, BOT.VELOCIDAD);
+            textoDeAudio += (await EnviarAudioOpenAI(mp3)) + ' ';
+        }
+        await funciones.state.update({ archivos: [], tipoMensaje: undefined });
+
+        const mensajeFinalAudio = `${contextoAdicional} ${promptExtra} ${textoDeAudio}`.trim().replace(/\s+/g, ' ');
+        
+        console.log('🧠 [SNIP] Inicio del MENSAJE FINAL A LA IA (desde AUDIO):', mensajeFinalAudio.substring(0, 80) + '...');
+        console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]'); // LOG RESTAURADO
+        const res = await EnviarTextoOpenAI(mensajeFinalAudio, funciones.ctx.from, guion, estado);
+        console.log('📥 RESPUESTA IA AUDIO:', res); // LOG RESTAURADO
+        return res;
+    }
+
+    // --- 📝 TEXTO NORMAL ---
+    console.log('📤 📄 Enviando texto plano:', msj);
+    console.log('🧠 [SNIP] Inicio del MENSAJE FINAL A LA IA (TEXTO):', mensajeFinal.substring(0, 80) + '...');
+    console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]'); // LOG RESTAURADO
+    const res = await EnviarTextoOpenAI(mensajeFinal, funciones.ctx.from, guion, estado);
+    console.log('📥 RESPUESTA IA TEXTO:', res); // LOG RESTAURADO
+    return res;
 }
 
 function generateUniqueFileName(extension) {
-  const timestamp = Date.now()
-  const randomNumber = Math.floor(Math.random() * 1000)
-  return `file_${timestamp}_${randomNumber}.${extension}`
+    const timestamp = Date.now();
+    const randomNumber = Math.floor(Math.random() * 1000);
+    return `file_${timestamp}_${randomNumber}.${extension}`;
 }
