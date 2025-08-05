@@ -74,7 +74,7 @@ async function agregarProductoAlCarrito(respuestaIA, state, tools) {
                 SKU: productoSeleccionado.sku || 'N/A',
                 NOMBRE_PRODUCTO: productoSeleccionado.nombre,
                 CANTIDAD: 1,
-                PRECIO_UNITARIO: Number(productoSeleccionado.precio),
+                PRECIO_UNITARIO: Number(String(productoSeleccionado.precio).replace(/[^0-9]/g, '')),
                 CATEGORIA: productoSeleccionado.categoria || 'General',
                 OPCION_1_COLOR: '', OPCION_2_TALLA: '', OPCION_3_TAMANO: '', OPCION_4_SABOR: '', NOTA_PRODUCTO: ''
             };
