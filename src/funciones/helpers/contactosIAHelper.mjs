@@ -116,7 +116,7 @@ export async function verificarYActualizarContactoSiEsNecesario(txt, phone, cont
   )
   if (!Object.keys(datosFiltrados).length) return
 
-  console.log(`📇 [IAINFO] Datos combinados IA detectados para ${phone}:`, datosFiltrados)
+  // console.log(`📇 [IAINFO] Datos combinados IA detectados para ${phone}:`, datosFiltrados)
 
   // Solo llama ActualizarContacto (que ya blinda y actualiza cache)
   await ActualizarContacto(phone, datosFiltrados)
