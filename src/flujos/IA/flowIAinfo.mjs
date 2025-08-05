@@ -440,6 +440,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     });
 // TERMINA BLOQUE PARA PEGAR (1 de 2)
+  })
 
  .addAction({ capture: true }, async (ctx, tools) => {
     // 🎙️ MICROFONO DE DIAGNÓSTICO 2 - INICIO DE MENSAJE DE CONTINUACIÓN
