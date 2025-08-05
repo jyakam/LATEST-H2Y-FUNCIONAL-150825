@@ -65,7 +65,7 @@ export function SincronizarContactos() {
 }
 
 export async function ActualizarContacto(phone, datos = {}) {
-  console.log(`📥 [CONTACTOS] Iniciando ActualizarContacto para ${phone} con datos:`, datos);
+  // console.log(`📥 [CONTACTOS] Iniciando ActualizarContacto para ${phone} con datos:`, datos);
 
   try {
     if (typeof datos !== 'object') {
