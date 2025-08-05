@@ -375,62 +375,73 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
     }
 
     // AgruparMensaje envuelve toda la lógica para procesar el texto final (de un mensaje de texto o de un audio transcrito).
-    AgruparMensaje(ctx, async (txt) => {
-      // Guardar mensaje del cliente en el historial
-      actualizarHistorialConversacion(txt, 'cliente', state);
-      Escribiendo(ctx);
-      console.log('🧾 [IAINFO] Texto agrupado final del usuario:', txt);
+    // INICIA BLOQUE PARA PEGAR (1 de 2)
+    AgruparMensaje(ctx, async (txt) => {
+        // Guardar mensaje del cliente en el historial
+        actualizarHistorialConversacion(txt, 'cliente', state);
+        Escribiendo(ctx);
 
-      // Construye el promptSistema para la IA usando los bloques de la BC
-      const bloques = ARCHIVO.PROMPT_BLOQUES;
-      const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(txt, '', state);
-      const promptSistema = armarPromptOptimizado(state, bloques, {
-        incluirProductos: esConsultaProductos,
-        categoriaProductos: categoriaDetectada,
-        incluirTestimonios: esConsultaTestimonios
-      });
+        // --- INICIO: Lógica Robusta de Contexto (sugerida por Grok) ---
+        let contextoAdicional = '';
+        const tipoMensaje = state.get('tipoMensaje');
 
-      const estado = {
-        esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-        contacto: contacto || {}
-      };
+        // Usamos un switch para manejar los casos de forma explícita y segura
+        switch (tipoMensaje) {
+            case ENUM_TIPO_ARCHIVO.IMAGEN:
+                contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
+                break;
+            case ENUM_TIPO_ARCHIVO.NOTA_VOZ:
+                contextoAdicional = `(Contexto para la IA: El siguiente texto es la transcripción de una NOTA DE VOZ. Tenlo en cuenta.)`;
+                break;
+        }
 
-      // ------ CHEQUEO DEL FLAG DE PRODUCTOS ------
-      if (!BOT.PRODUCTOS) {
-        // MODO SIN PRODUCTOS: La IA responde usando solo la BC, sin catálogo.
-        console.log('🛑 [IAINFO] Flag PRODUCTOS está en FALSE. Usando IA general.');
-        const res = await EnviarIA(txt, promptSistema, {
-          ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: ''
-        }, estado);
-        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+        // Log de depuración para saber qué contexto se está usando
+        if (contextoAdicional) {
+            console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
+        }
+        // --- FIN: Lógica Robusta de Contexto ---
 
-      } else {
-        // MODO CON PRODUCTOS: Lógica de productos completa.
-        if (!state.get('_productosFull')?.length) {
-          await cargarProductosAlState(state);
-          await state.update({ __productosCargados: true });
-          console.log('📦 [IAINFO] Productos cargados en cache para:', phone);
-        }
+        // Construye el prompt (SIN contaminar el 'txt' original)
+        const bloques = ARCHIVO.PROMPT_BLOQUES;
+        const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(txt, '', state);
+        const promptSistema = armarPromptOptimizado(state, bloques, {
+            incluirProductos: esConsultaProductos,
+            categoriaProductos: categoriaDetectada,
+            incluirTestimonios: esConsultaTestimonios
+        });
 
-        const productos = await obtenerProductosCorrectos(txt, state);
-        const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
+        // El 'estado' ahora incluye el contextoAdicional para pasarlo a EnviarIA
+        const estado = {
+            esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+            contacto: contacto || {},
+            contextoAdicional: contextoAdicional // <-- Aquí pasamos el contexto por separado
+        };
 
-        if (productos.length) {
-          await state.update({ productosUltimaSugerencia: productos });
-          console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`);
-        }
+        // El resto del flujo de productos/general sigue intacto...
+        if (!BOT.PRODUCTOS) {
+            console.log('🛑 [IAINFO] Flag PRODUCTOS está en FALSE. Usando IA general.');
+            const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
+            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+        } else {
+            if (!state.get('_productosFull')?.length) {
+                await cargarProductosAlState(state);
+                await state.update({ __productosCargados: true });
+                console.log('📦 [IAINFO] Productos cargados en cache para:', phone);
+            }
+            const productos = await obtenerProductosCorrectos(txt, state);
+            const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
+            if (productos.length) {
+                await state.update({ productosUltimaSugerencia: productos });
+                console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`);
+            }
+            const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra }, estado);
+            console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
+            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+        }
 
-        const res = await EnviarIA(txt, promptSistema, {
-          ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-        }, estado);
-
-        console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
-        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
-      }
-
-      await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-    });
-  })
+        await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+    });
+// TERMINA BLOQUE PARA PEGAR (1 de 2)
 
  .addAction({ capture: true }, async (ctx, tools) => {
     // 🎙️ MICROFONO DE DIAGNÓSTICO 2 - INICIO DE MENSAJE DE CONTINUACIÓN
@@ -497,61 +508,71 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         }
     }
      
-    AgruparMensaje(ctx, async (txt) => {
-      // Guardar mensaje del cliente en el historial
-      actualizarHistorialConversacion(txt, 'cliente', state);
-      if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
-      reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
-      Escribiendo(ctx);
+    // INICIA BLOQUE PARA PEGAR (2 de 2)
+    AgruparMensaje(ctx, async (txt) => {
+        // Guardar mensaje del cliente en el historial
+        actualizarHistorialConversacion(txt, 'cliente', state);
+        if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
+        reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
+        Escribiendo(ctx);
 
-      console.log('✏️ [IAINFO] Mensaje capturado en continuación de conversación:', txt);
+        // --- INICIO: Lógica Robusta de Contexto (sugerida por Grok) ---
+        let contextoAdicional = '';
+        const tipoMensaje = state.get('tipoMensaje');
 
-      // Construye el promptSistema para la IA
-      const bloques = ARCHIVO.PROMPT_BLOQUES;
-      const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(txt, state.get('ultimaConsulta') || '', state);
-      const promptSistema = armarPromptOptimizado(state, bloques, {
-        incluirProductos: esConsultaProductos,
-        categoriaProductos: categoriaDetectada,
-        incluirTestimonios: esConsultaTestimonios
-      });
+        // Usamos un switch para manejar los casos de forma explícita y segura
+        switch (tipoMensaje) {
+            case ENUM_TIPO_ARCHIVO.IMAGEN:
+                contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
+                break;
+            case ENUM_TIPO_ARCHIVO.NOTA_VOZ:
+                contextoAdicional = `(Contexto para la IA: El siguiente texto es la transcripción de una NOTA DE VOZ. Tenlo en cuenta.)`;
+                break;
+        }
+        
+        // Log de depuración para saber qué contexto se está usando
+        if (contextoAdicional) {
+            console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
+        }
+        // --- FIN: Lógica Robusta de Contexto ---
 
-      const estado = {
-        esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-        contacto: contacto || {}
-      };
+        // Construye el prompt (SIN contaminar el 'txt' original)
+        const bloques = ARCHIVO.PROMPT_BLOQUES;
+        const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(txt, state.get('ultimaConsulta') || '', state);
+        const promptSistema = armarPromptOptimizado(state, bloques, {
+            incluirProductos: esConsultaProductos,
+            categoriaProductos: categoriaDetectada,
+            incluirTestimonios: esConsultaTestimonios
+        });
 
-      // ------ CHEQUEO DEL FLAG DE PRODUCTOS ------
-      if (!BOT.PRODUCTOS) {
-        // MODO SIN PRODUCTOS
-        console.log('🛑 [IAINFO][capture] Flag PRODUCTOS está en FALSE. Usando IA general.');
-        const res = await EnviarIA(txt, promptSistema, {
-          ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: ''
-        }, estado);
-        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+        // El 'estado' ahora incluye el contextoAdicional para pasarlo a EnviarIA
+        const estado = {
+            esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+            contacto: contacto || {},
+            contextoAdicional: contextoAdicional // <-- Aquí pasamos el contexto por separado
+        };
 
-      } else {
-        // MODO CON PRODUCTOS
-        if (!state.get('_productosFull')?.length) {
-          await cargarProductosAlState(state);
-          await state.update({ __productosCargados: true });
-        }
+        // El resto del flujo de productos/general sigue intacto...
+        if (!BOT.PRODUCTOS) {
+            console.log('🛑 [IAINFO][capture] Flag PRODUCTOS está en FALSE. Usando IA general.');
+            const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
+            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+        } else {
+            if (!state.get('_productosFull')?.length) {
+                await cargarProductosAlState(state);
+                await state.update({ __productosCargados: true });
+            }
+            const productos = await obtenerProductosCorrectos(txt, state);
+            const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
+            if (productos.length) {
+                await state.update({ productosUltimaSugerencia: productos });
+            }
+            const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra }, estado);
+            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+        }
 
-        const productos = await obtenerProductosCorrectos(txt, state);
-        const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
-
-        if (productos.length) {
-          await state.update({ productosUltimaSugerencia: productos });
-        }
-
-        const res = await EnviarIA(txt, promptSistema, {
-          ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra
-        }, estado);
-
-        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
-      }
-
-      await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-    });
+        await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+    });
 
     return tools.fallBack();
  });
