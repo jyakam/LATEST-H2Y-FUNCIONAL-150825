@@ -16,7 +16,7 @@ export async function EnviarIA(msj, guion, funciones, estado = {}) {
   console.log('📊 [AUDITORIA] → Inicia EnviarIA()')
   console.log('📊 [AUDITORIA] Tipo de mensaje:', tipoMensaje)
   console.log('📊 [AUDITORIA] Prompt extra incluido:', !!promptExtra)
-  console.log('📊 [AUDITORIA] Estado cliente:', estado)
+  // console.log('📊 [AUDITORIA] Estado cliente:', estado)
 
   // --- 📸 IMAGEN ---
   if (tipoMensaje === ENUM_TIPO_ARCHIVO.IMAGEN) {
