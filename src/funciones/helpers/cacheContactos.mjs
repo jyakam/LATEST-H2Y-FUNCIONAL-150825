@@ -14,7 +14,7 @@ export async function cargarContactosDesdeAppSheet() {
       return;
     }
     const datos = await getTable(APPSHEETCONFIG, process.env.PAG_CONTACTOS);
-    console.log(`📥 [CACHE_CONTACTOS] Datos crudos recibidos:`, datos);
+    // console.log(`📥 [CACHE_CONTACTOS] Datos crudos recibidos:`, datos);
     if (Array.isArray(datos)) {
       CACHE.LISTA_CONTACTOS = datos;
       console.log(`🗃️ [CACHE_CONTACTOS] Cache actualizado (${CACHE.LISTA_CONTACTOS.length} registros)`);
@@ -40,12 +40,12 @@ export function getContactoByTelefono(telefono) {
     const normalizedCTelefono = c.TELEFONO ? c.TELEFONO.replace(/^\+/, '') : '';
     return normalizedCTelefono === normalizedTelefono;
   }) || null;
-  console.log('[DEBUG][USO] Tipo de contacto:', typeof contacto, contacto);
+  // console.log('[DEBUG][USO] Tipo de contacto:', typeof contacto, contacto);
   return contacto;
 }
 
 export function actualizarContactoEnCache(contacto) {
-  console.log(`🗃️ [CACHE_CONTACTOS] Actualizando contacto:`, contacto);
+  // console.log(`🗃️ [CACHE_CONTACTOS] Actualizando contacto:`, contacto);
   if (!contacto?.TELEFONO) {
     console.error('❌ [CACHE_CONTACTOS] Contacto inválido, falta TELEFONO');
     return;
