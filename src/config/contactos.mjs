@@ -130,7 +130,7 @@ export async function ActualizarContacto(phone, datos = {}) {
 
     const startTime = Date.now();
     console.log('⏱️ [DEBUG] Inicio de postTable para', phone);
-    console.log(`[postTable] Enviando a AppSheet:`, { table: process.env.PAG_CONTACTOS, data: [contactoLimpio], propiedades });
+    // console.log(`[postTable] Enviando a AppSheet:`, { table: process.env.PAG_CONTACTOS, data: [contactoLimpio], propiedades });
     const resp = await postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoLimpio], propiedades);
     console.log('⏱️ [DEBUG] Fin de postTable para', phone, 'Tiempo:', Date.now() - startTime, 'ms');
     console.log(`[CONTACTOS] Respuesta de postTable para ${phone}:`, resp);
