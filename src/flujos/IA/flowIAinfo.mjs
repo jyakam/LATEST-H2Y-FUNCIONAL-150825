@@ -381,11 +381,10 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         actualizarHistorialConversacion(txt, 'cliente', state);
         Escribiendo(ctx);
 
-        // --- INICIO: Lógica Robusta de Contexto (sugerida por Grok) ---
+        // --- INICIO: Lógica Robusta de Contexto ---
         let contextoAdicional = '';
         const tipoMensaje = state.get('tipoMensaje');
 
-        // Usamos un switch para manejar los casos de forma explícita y segura
         switch (tipoMensaje) {
             case ENUM_TIPO_ARCHIVO.IMAGEN:
                 contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
@@ -395,7 +394,6 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
                 break;
         }
 
-        // Log de depuración para saber qué contexto se está usando
         if (contextoAdicional) {
             console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
         }
@@ -414,10 +412,9 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         const estado = {
             esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
             contacto: contacto || {},
-            contextoAdicional: contextoAdicional // <-- Aquí pasamos el contexto por separado
+            contextoAdicional: contextoAdicional
         };
 
-        // El resto del flujo de productos/general sigue intacto...
         if (!BOT.PRODUCTOS) {
             console.log('🛑 [IAINFO] Flag PRODUCTOS está en FALSE. Usando IA general.');
             const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
@@ -439,6 +436,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
             await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
         }
 
+        // Esta línea estaba faltando en el bloque que te pasé, mis disculpas.
         await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     });
 // TERMINA BLOQUE PARA PEGAR (1 de 2)
@@ -516,11 +514,10 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
         Escribiendo(ctx);
 
-        // --- INICIO: Lógica Robusta de Contexto (sugerida por Grok) ---
+        // --- INICIO: Lógica Robusta de Contexto ---
         let contextoAdicional = '';
         const tipoMensaje = state.get('tipoMensaje');
 
-        // Usamos un switch para manejar los casos de forma explícita y segura
         switch (tipoMensaje) {
             case ENUM_TIPO_ARCHIVO.IMAGEN:
                 contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
@@ -530,7 +527,6 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
                 break;
         }
         
-        // Log de depuración para saber qué contexto se está usando
         if (contextoAdicional) {
             console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
         }
@@ -549,10 +545,9 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         const estado = {
             esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
             contacto: contacto || {},
-            contextoAdicional: contextoAdicional // <-- Aquí pasamos el contexto por separado
+            contextoAdicional: contextoAdicional
         };
 
-        // El resto del flujo de productos/general sigue intacto...
         if (!BOT.PRODUCTOS) {
             console.log('🛑 [IAINFO][capture] Flag PRODUCTOS está en FALSE. Usando IA general.');
             const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
@@ -573,7 +568,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
 
         await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     });
-
+// TERMINA BLOQUE PARA PEGAR (2 de 2)
     return tools.fallBack();
  });
 
