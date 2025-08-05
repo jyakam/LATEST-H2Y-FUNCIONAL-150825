@@ -343,7 +343,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
     // IA para detectar y actualizar contacto completo
     const esDatosContacto = await detectarIntencionContactoIA(message)
     if (esDatosContacto) {
-      console.log("🛡️ [FLOWIAINFO][WELCOME] Se va a actualizar contacto. Contacto en cache:", contacto)
+     // console.log("🛡️ [FLOWIAINFO][WELCOME] Se va a actualizar contacto. Contacto en cache:", contacto)
       await verificarYActualizarContactoSiEsNecesario(message, phone, contacto, datos)
     }
 
@@ -458,7 +458,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
     // ------ SIEMPRE intentar actualización completa de contacto por IA ------
     const esDatosContacto = await detectarIntencionContactoIA(message);
     if (esDatosContacto) {
-      console.log("🛡️ [FLOWIAINFO][capture] Se va a actualizar contacto. Contacto en cache:", contacto);
+     // console.log("🛡️ [FLOWIAINFO][capture] Se va a actualizar contacto. Contacto en cache:", contacto);
       await verificarYActualizarContactoSiEsNecesario(message, phone, contacto, datos);
       contacto = Cache.getContactoByTelefono(phone);
     }
