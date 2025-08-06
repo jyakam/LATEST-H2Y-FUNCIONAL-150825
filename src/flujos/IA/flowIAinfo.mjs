@@ -472,9 +472,8 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
 
     // ✅✅✅ INICIO DE LA CORRECCIÓN (SECCIÓN CAPTURE) ✅✅✅
     await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-    const detectar = await DetectarArchivos(ctx, state);
-
-    const tipoMensajeActual = state.get('tipoMensaje');
+    const resultadoDeteccion = await DetectarArchivos(ctx, state);
+    const tipoMensajeActual = resultadoDeteccion.tipo;
 
     // --- CAMINO 1: EL MENSAJE ES IMAGEN O AUDIO ---
     if (tipoMensajeActual === ENUM_TIPO_ARCHIVO.IMAGEN || tipoMensajeActual === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
