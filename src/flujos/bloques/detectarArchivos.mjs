@@ -12,9 +12,10 @@ export const ENUM_TIPO_ARCHIVO = {
 
 //TT DETECTAR ARCHIVOS ENVIADOS
 export async function DetectarArchivos(ctx, state) {
-  //SS IMAGEN
-  if (ctx.body.includes('_event_media_')) {
-    console.log('📁 🌄 imagen detectado')
+ //SS IMAGEN
+  if (ctx.body.includes(&#;_event_media_&#;)) {
+    console.log(&#;📁 🌄 imagen detectado&#;)
+    console.log(`[DIAGNÓSTICO DE CONFIG] Verificando flag BOT.PROCESAR_IMG. Valor leído: [${BOT.PROCESAR_IMG}]`); // &lt;-- LÍNEA AÑADIDA
     if (BOT.PROCESAR_IMG) {
       // procesar imagen
       const ruta = await GuardarArchivos(ctx)
@@ -41,9 +42,10 @@ export async function DetectarArchivos(ctx, state) {
       return { from: ctx.from, body: txt }
     }
   }
-  //SS NOTA DE VOZ DETECTADA
-  else if (ctx.body.includes('_event_voice_note_')) {
-    console.log('📁 🎵 nota de voz detectada')
+//SS NOTA DE VOZ DETECTADA
+  else if (ctx.body.includes(&#;_event_voice_note_&#;)) {
+    console.log(&#;📁 🎵 nota de voz detectada&#;)
+    console.log(`[DIAGNÓSTICO DE CONFIG] Verificando flag BOT.PROCESAR_AUDIOS. Valor leído: [${BOT.PROCESAR_AUDIOS}]`); // &lt;-- LÍNEA AÑADIDA
     //procesar audios
     if (BOT.PROCESAR_AUDIOS) {
       const ruta = await GuardarArchivos(ctx)
