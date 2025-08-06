@@ -244,38 +244,6 @@ async function esComprobanteDePagoIA(fileBuffer) {
     }
 }
 
-// INICIA BLOQUE PARA PEGAR (Función nueva)
-async function transcribirAudioNotaDeVoz(state, tools) {
-    console.log('🎙️ [AUDIO] Iniciando proceso de transcripción...');
-    const datos = state.get('archivos') || [];
-    const audios = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.NOTA_VOZ);
-    let textoDeAudio = '';
-
-    if (audios.length === 0) {
-        console.log('⚠️ [AUDIO] No se encontró archivo de audio en el estado.');
-        return '';
-    }
-
-    try {
-        for (const aud of audios) {
-            const id = `audio_${Date.now()}`;
-            // Asumimos que tienes 'convertOggToMp3' y 'EnviarAudioOpenAI' importados y disponibles
-            const mp3 = await convertOggToMp3(aud.ruta, id, BOT.VELOCIDAD);
-            const txt = await EnviarAudioOpenAI(mp3);
-            textoDeAudio += txt + ' ';
-        }
-        // Limpiamos los archivos procesados y seteamos el tipo de mensaje a texto (0)
-        await state.update({ archivos: [], tipoMensaje: 0 });
-        console.log(`✅ [AUDIO] Transcripción completa: "${textoDeAudio.trim()}"`);
-        return textoDeAudio.trim();
-    } catch (error) {
-        console.error('❌ [AUDIO] Error durante la transcripción:', error);
-        await state.update({ archivos: [], tipoMensaje: undefined });
-        return ''; // Devuelve vacío si falla
-    }
-}
-// TERMINA BLOQUE PARA PEGAR
-
 export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, tools) => {
     // 🎙️ MICROFONO DE DIAGNÓSTICO 1 - INICIO DE NUEVA CONVERSACIÓN
@@ -408,35 +376,19 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
 
     // AgruparMensaje envuelve toda la lógica para procesar el texto final (de un mensaje de texto o de un audio transcrito).
    // INICIA BLOQUE PARA REEMPLAZAR (Úsalo en ambos sitios)
-    AgruparMensaje(ctx, async (txt, ctx) => { // <-- Nota: ahora también recibe 'ctx'
-        // Definimos las herramientas y variables que necesitamos DENTRO del bloque
+    AgruparMensaje(ctx, async (txt, ctx) => {
         const phone = ctx.from.split('@')[0];
         const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
-        let textoFinalUsuario = txt;
-        let contacto = Cache.getContactoByTelefono(phone);
+        const textoFinalUsuario = txt; // Usamos directamente el texto del caption o el texto del mensaje.
+        const contacto = Cache.getContactoByTelefono(phone);
 
-        // --- LÓGICA DE AUDIO E IMAGEN ---
-        const tipoMensaje = state.get('tipoMensaje');
-        let contextoAdicional = '';
-
-        // Si es una nota de voz, la transcribimos ANTES de hacer nada más
-        if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
-            textoFinalUsuario = await transcribirAudioNotaDeVoz(state, tools);
-            contextoAdicional = `(Contexto para la IA: El siguiente texto es la transcripción de una NOTA DE VOZ. Tenlo en cuenta.)`;
-        } else if (tipoMensaje === ENUM_TIPO_ARCHIVO.IMAGEN) {
-            contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
-        }
-
-        if (contextoAdicional) {
-            console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
-        }
-        
-        // El resto de tu código de negocio sigue igual, usando 'textoFinalUsuario'
+        // --- LÓGICA DE NEGOCIO ---
         actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
         if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
         reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
         Escribiendo(ctx);
 
+        // Se mantiene toda la lógica para construir el prompt y el contexto
         const bloques = ARCHIVO.PROMPT_BLOQUES;
         const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(textoFinalUsuario, state.get('ultimaConsulta') || '', state);
         const promptSistema = armarPromptOptimizado(state, bloques, {
@@ -447,10 +399,10 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
 
         const estado = {
             esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-            contacto: contacto || {},
-            contextoAdicional: contextoAdicional
+            contacto: contacto || {}
         };
         
+        // La lógica de productos o no productos se mantiene intacta
         if (!BOT.PRODUCTOS) {
             const res = await EnviarIA(textoFinalUsuario, promptSistema, tools, estado);
             await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
@@ -540,35 +492,19 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
      
     // INICIA BLOQUE PARA PEGAR (2 de 2)
     // INICIA BLOQUE PARA REEMPLAZAR (Úsalo en ambos sitios)
-    AgruparMensaje(ctx, async (txt, ctx) => { // <-- Nota: ahora también recibe 'ctx'
-        // Definimos las herramientas y variables que necesitamos DENTRO del bloque
+    AgruparMensaje(ctx, async (txt, ctx) => {
         const phone = ctx.from.split('@')[0];
         const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
-        let textoFinalUsuario = txt;
-        let contacto = Cache.getContactoByTelefono(phone);
+        const textoFinalUsuario = txt; // Usamos directamente el texto del caption o el texto del mensaje.
+        const contacto = Cache.getContactoByTelefono(phone);
 
-        // --- LÓGICA DE AUDIO E IMAGEN ---
-        const tipoMensaje = state.get('tipoMensaje');
-        let contextoAdicional = '';
-
-        // Si es una nota de voz, la transcribimos ANTES de hacer nada más
-        if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
-            textoFinalUsuario = await transcribirAudioNotaDeVoz(state, tools);
-            contextoAdicional = `(Contexto para la IA: El siguiente texto es la transcripción de una NOTA DE VOZ. Tenlo en cuenta.)`;
-        } else if (tipoMensaje === ENUM_TIPO_ARCHIVO.IMAGEN) {
-            contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
-        }
-
-        if (contextoAdicional) {
-            console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
-        }
-        
-        // El resto de tu código de negocio sigue igual, usando 'textoFinalUsuario'
+        // --- LÓGICA DE NEGOCIO ---
         actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
         if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
         reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
         Escribiendo(ctx);
 
+        // Se mantiene toda la lógica para construir el prompt y el contexto
         const bloques = ARCHIVO.PROMPT_BLOQUES;
         const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(textoFinalUsuario, state.get('ultimaConsulta') || '', state);
         const promptSistema = armarPromptOptimizado(state, bloques, {
@@ -579,10 +515,10 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
 
         const estado = {
             esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-            contacto: contacto || {},
-            contextoAdicional: contextoAdicional
+            contacto: contacto || {}
         };
         
+        // La lógica de productos o no productos se mantiene intacta
         if (!BOT.PRODUCTOS) {
             const res = await EnviarIA(textoFinalUsuario, promptSistema, tools, estado);
             await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
