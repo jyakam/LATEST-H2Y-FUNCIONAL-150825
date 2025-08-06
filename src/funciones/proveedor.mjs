@@ -205,8 +205,8 @@ export async function GuardarArchivos(ctx) {
     RevisarTemp(); 
 
     console.log('📄 [GuardarArchivos] Intentando guardar archivo con el método del proveedor...');
-    // CORRECCIÓN FINAL: Se usa PROVEEDOR.prov.saveFile y se le pasa ctx.message
-    const localPath = await PROVEEDOR.prov.saveFile(ctx.message, { path: './temp' });
+    // CORRECCIÓN FINALÍSIMA: Volvemos a pasar el 'ctx' completo, que es lo que la función espera.
+    const localPath = await PROVEEDOR.prov.saveFile(ctx, { path: './temp' });
     
     console.log(`✅ [GuardarArchivos] Archivo guardado exitosamente en: ${localPath}`);
     return localPath;
