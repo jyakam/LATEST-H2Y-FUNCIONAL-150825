@@ -26,14 +26,17 @@ export async function DetectarArchivos(ctx, state) {
         return {
           from: ctx.from,
           body: ctx.message.imageMessage.caption ? ctx.message.imageMessage.caption : '',
-          tipo: ENUM_TIPO_ARCHIVO.IMAGEN // <-- CAMBIO CLAVE: Devolvemos el tipo
+          tipo: ENUM_TIPO_ARCHIVO.IMAGEN
         }
       }
+      // AÑADIDO: Fallback por si GuardarArchivos falla
+      console.log('⚠️ [DetectarArchivos] No se pudo guardar la imagen, se procesará como texto.');
+      return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.TEXTO };
     }
     else {
       const txt = ctx.message.imageMessage.caption ? ctx.message.imageMessage.caption + '\n' + ctx.body : ctx.body
       await state.update({ tipoMensaje: ENUM_TIPO_ARCHIVO.TEXTO })
-      return { from: ctx.from, body: txt, tipo: ENUM_TIPO_ARCHIVO.TEXTO } // <-- CAMBIO CLAVE
+      return { from: ctx.from, body: txt, tipo: ENUM_TIPO_ARCHIVO.TEXTO }
     }
   }
   //SS NOTA DE VOZ DETECTADA
@@ -47,11 +50,14 @@ export async function DetectarArchivos(ctx, state) {
         const archivo = { tipo: ENUM_TIPO_ARCHIVO.NOTA_VOZ, ruta }
         archivos.push(archivo)
         await state.update({ archivos, tipoMensaje: ENUM_TIPO_ARCHIVO.NOTA_VOZ })
-        return { from: ctx.from, body: '', tipo: ENUM_TIPO_ARCHIVO.NOTA_VOZ } // <-- CAMBIO CLAVE
+        return { from: ctx.from, body: '', tipo: ENUM_TIPO_ARCHIVO.NOTA_VOZ }
       }
+      // AÑADIDO: Fallback por si GuardarArchivos falla
+      console.log('⚠️ [DetectarArchivos] No se pudo guardar el audio, se procesará como texto.');
+      return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.TEXTO };
     }
     else {
-      return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.TEXTO } // <-- CAMBIO CLAVE
+      return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.TEXTO }
     }
   }
   //SS DOCUMENTO DETECTADO
@@ -63,14 +69,16 @@ export async function DetectarArchivos(ctx, state) {
       const archivo = { tipo: ENUM_TIPO_ARCHIVO.DOCUMENTO, ruta }
       archivos.push(archivo)
       await state.update({ archivos, tipoMensaje: ENUM_TIPO_ARCHIVO.DOCUMENTO })
-      return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.DOCUMENTO } // <-- CAMBIO CLAVE
+      return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.DOCUMENTO }
     }
-    return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.TEXTO } // <-- CAMBIO CLAVE
+     // AÑADIDO: Fallback por si GuardarArchivos falla
+    console.log('⚠️ [DetectarArchivos] No se pudo guardar el documento, se procesará como texto.');
+    return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.TEXTO };
   }
   //SS SOLO TEXTO
   else {
     console.log('📄 texto detectado')
     await state.update({ tipoMensaje: ENUM_TIPO_ARCHIVO.TEXTO })
-    return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.TEXTO } // <-- CAMBIO CLAVE
+    return { from: ctx.from, body: ctx.body, tipo: ENUM_TIPO_ARCHIVO.TEXTO }
   }
 }
