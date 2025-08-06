@@ -244,6 +244,38 @@ async function esComprobanteDePagoIA(fileBuffer) {
     }
 }
 
+// INICIA BLOQUE PARA PEGAR (Función nueva)
+async function transcribirAudioNotaDeVoz(state, tools) {
+    console.log('🎙️ [AUDIO] Iniciando proceso de transcripción...');
+    const datos = state.get('archivos') || [];
+    const audios = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.NOTA_VOZ);
+    let textoDeAudio = '';
+
+    if (audios.length === 0) {
+        console.log('⚠️ [AUDIO] No se encontró archivo de audio en el estado.');
+        return '';
+    }
+
+    try {
+        for (const aud of audios) {
+            const id = `audio_${Date.now()}`;
+            // Asumimos que tienes 'convertOggToMp3' y 'EnviarAudioOpenAI' importados y disponibles
+            const mp3 = await convertOggToMp3(aud.ruta, id, BOT.VELOCIDAD);
+            const txt = await EnviarAudioOpenAI(mp3);
+            textoDeAudio += txt + ' ';
+        }
+        // Limpiamos los archivos procesados y seteamos el tipo de mensaje a texto (0)
+        await state.update({ archivos: [], tipoMensaje: 0 });
+        console.log(`✅ [AUDIO] Transcripción completa: "${textoDeAudio.trim()}"`);
+        return textoDeAudio.trim();
+    } catch (error) {
+        console.error('❌ [AUDIO] Error durante la transcripción:', error);
+        await state.update({ archivos: [], tipoMensaje: undefined });
+        return ''; // Devuelve vacío si falla
+    }
+}
+// TERMINA BLOQUE PARA PEGAR
+
 export const flowIAinfo = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, tools) => {
     // 🎙️ MICROFONO DE DIAGNÓSTICO 1 - INICIO DE NUEVA CONVERSACIÓN
@@ -375,71 +407,68 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
     }
 
     // AgruparMensaje envuelve toda la lógica para procesar el texto final (de un mensaje de texto o de un audio transcrito).
-    // INICIA BLOQUE PARA PEGAR (1 de 2)
+   // INICIA BLOQUE PARA REEMPLAZAR (Úsalo en ambos sitios)
     AgruparMensaje(ctx, async (txt) => {
-        // Guardar mensaje del cliente en el historial
-        actualizarHistorialConversacion(txt, 'cliente', state);
-        Escribiendo(ctx);
+        let textoFinalUsuario = txt; // Por defecto, es el texto que llega del agrupador
+        let contacto = Cache.getContactoByTelefono(phone);
 
-        // --- INICIO: Lógica Robusta de Contexto ---
-        let contextoAdicional = '';
+        // --- INICIO: LÓGICA CORREGIDA DE AUDIO E IMAGEN ---
         const tipoMensaje = state.get('tipoMensaje');
+        let contextoAdicional = '';
 
-        switch (tipoMensaje) {
-            case ENUM_TIPO_ARCHIVO.IMAGEN:
-                contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
-                break;
-            case ENUM_TIPO_ARCHIVO.NOTA_VOZ:
-                contextoAdicional = `(Contexto para la IA: El siguiente texto es la transcripción de una NOTA DE VOZ. Tenlo en cuenta.)`;
-                break;
+        // Si es una nota de voz, la transcribimos ANTES de hacer nada más
+        if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
+            textoFinalUsuario = await transcribirAudioNotaDeVoz(state, tools);
+            contextoAdicional = `(Contexto para la IA: El siguiente texto es la transcripción de una NOTA DE VOZ. Tenlo en cuenta.)`;
+        } else if (tipoMensaje === ENUM_TIPO_ARCHIVO.IMAGEN) {
+            contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
         }
 
         if (contextoAdicional) {
             console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
         }
-        // --- FIN: Lógica Robusta de Contexto ---
+        // --- FIN: LÓGICA CORREGIDA ---
 
-        // Construye el prompt (SIN contaminar el 'txt' original)
+        // El resto de tu código de negocio sigue igual, pero usando 'textoFinalUsuario'
+        actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
+        if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
+        reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
+        Escribiendo(ctx);
+
         const bloques = ARCHIVO.PROMPT_BLOQUES;
-        const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(txt, '', state);
+        const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(textoFinalUsuario, state.get('ultimaConsulta') || '', state);
         const promptSistema = armarPromptOptimizado(state, bloques, {
             incluirProductos: esConsultaProductos,
             categoriaProductos: categoriaDetectada,
             incluirTestimonios: esConsultaTestimonios
         });
 
-        // El 'estado' ahora incluye el contextoAdicional para pasarlo a EnviarIA
         const estado = {
             esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
             contacto: contacto || {},
             contextoAdicional: contextoAdicional
         };
-
+        
         if (!BOT.PRODUCTOS) {
-            console.log('🛑 [IAINFO] Flag PRODUCTOS está en FALSE. Usando IA general.');
-            const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
-            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
+            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
         } else {
             if (!state.get('_productosFull')?.length) {
                 await cargarProductosAlState(state);
                 await state.update({ __productosCargados: true });
-                console.log('📦 [IAINFO] Productos cargados en cache para:', phone);
             }
-            const productos = await obtenerProductosCorrectos(txt, state);
+            const productos = await obtenerProductosCorrectos(textoFinalUsuario, state);
             const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
             if (productos.length) {
                 await state.update({ productosUltimaSugerencia: productos });
-                console.log(`📦 [IAINFO] ${productos.length} productos encontrados y asociados al mensaje.`);
             }
-            const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra }, estado);
-            console.log('📥 [IAINFO] Respuesta completa recibida de IA:', res?.respuesta);
-            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra }, estado);
+            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
         }
 
-        // Esta línea estaba faltando en el bloque que te pasé, mis disculpas.
         await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     });
-// TERMINA BLOQUE PARA PEGAR (1 de 2)
+// TERMINA BLOQUE PARA REEMPLAZAR
   })
 
  .addAction({ capture: true }, async (ctx, tools) => {
@@ -508,68 +537,68 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
     }
      
     // INICIA BLOQUE PARA PEGAR (2 de 2)
+    // INICIA BLOQUE PARA REEMPLAZAR (Úsalo en ambos sitios)
     AgruparMensaje(ctx, async (txt) => {
-        // Guardar mensaje del cliente en el historial
-        actualizarHistorialConversacion(txt, 'cliente', state);
+        let textoFinalUsuario = txt; // Por defecto, es el texto que llega del agrupador
+        let contacto = Cache.getContactoByTelefono(phone);
+
+        // --- INICIO: LÓGICA CORREGIDA DE AUDIO E IMAGEN ---
+        const tipoMensaje = state.get('tipoMensaje');
+        let contextoAdicional = '';
+
+        // Si es una nota de voz, la transcribimos ANTES de hacer nada más
+        if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
+            textoFinalUsuario = await transcribirAudioNotaDeVoz(state, tools);
+            contextoAdicional = `(Contexto para la IA: El siguiente texto es la transcripción de una NOTA DE VOZ. Tenlo en cuenta.)`;
+        } else if (tipoMensaje === ENUM_TIPO_ARCHIVO.IMAGEN) {
+            contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
+        }
+
+        if (contextoAdicional) {
+            console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
+        }
+        // --- FIN: LÓGICA CORREGIDA ---
+
+        // El resto de tu código de negocio sigue igual, pero usando 'textoFinalUsuario'
+        actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
         if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
         reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
         Escribiendo(ctx);
 
-        // --- INICIO: Lógica Robusta de Contexto ---
-        let contextoAdicional = '';
-        const tipoMensaje = state.get('tipoMensaje');
-
-        switch (tipoMensaje) {
-            case ENUM_TIPO_ARCHIVO.IMAGEN:
-                contextoAdicional = '(Contexto para la IA: El cliente acaba de enviar una IMAGEN. Tu respuesta debe ser relevante a eso.)';
-                break;
-            case ENUM_TIPO_ARCHIVO.NOTA_VOZ:
-                contextoAdicional = `(Contexto para la IA: El siguiente texto es la transcripción de una NOTA DE VOZ. Tenlo en cuenta.)`;
-                break;
-        }
-        
-        if (contextoAdicional) {
-            console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
-        }
-        // --- FIN: Lógica Robusta de Contexto ---
-
-        // Construye el prompt (SIN contaminar el 'txt' original)
         const bloques = ARCHIVO.PROMPT_BLOQUES;
-        const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(txt, state.get('ultimaConsulta') || '', state);
+        const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(textoFinalUsuario, state.get('ultimaConsulta') || '', state);
         const promptSistema = armarPromptOptimizado(state, bloques, {
             incluirProductos: esConsultaProductos,
             categoriaProductos: categoriaDetectada,
             incluirTestimonios: esConsultaTestimonios
         });
 
-        // El 'estado' ahora incluye el contextoAdicional para pasarlo a EnviarIA
         const estado = {
             esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
             contacto: contacto || {},
             contextoAdicional: contextoAdicional
         };
-
+        
         if (!BOT.PRODUCTOS) {
-            console.log('🛑 [IAINFO][capture] Flag PRODUCTOS está en FALSE. Usando IA general.');
-            const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
-            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
+            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
         } else {
             if (!state.get('_productosFull')?.length) {
                 await cargarProductosAlState(state);
                 await state.update({ __productosCargados: true });
             }
-            const productos = await obtenerProductosCorrectos(txt, state);
+            const productos = await obtenerProductosCorrectos(textoFinalUsuario, state);
             const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
             if (productos.length) {
                 await state.update({ productosUltimaSugerencia: productos });
             }
-            const res = await EnviarIA(txt, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra }, estado);
-            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, txt);
+            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra }, estado);
+            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
         }
 
         await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     });
-// TERMINA BLOQUE PARA PEGAR (2 de 2)
+// TERMINA BLOQUE PARA REEMPLAZAR
     return tools.fallBack();
  });
 
