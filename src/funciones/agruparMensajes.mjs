@@ -44,7 +44,7 @@ export function AgruparMensaje(ctx, callback) {
   state.timer = setTimeout(() => {
     const resultado = ProcesarCola(state)
     if (state.callback) {
-      state.callback(resultado)
+      state.callback(resultado, ctx)
       state.callback = null
       state = null
       BorrarEstado(ctx.from)
