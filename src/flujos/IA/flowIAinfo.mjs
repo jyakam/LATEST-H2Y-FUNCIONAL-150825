@@ -376,10 +376,11 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
             }
         }
         
-        // El texto que acompaña (caption) se pasa, si no hay, se pasa vacío.
-        const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
-        const res = await EnviarIA(textoAdjunto, '', tools, {});
-        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
+       // El texto que acompaña (caption) se pasa, si no hay, se pasa vacío.
+const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
+const herramientas = { ctx, flowDynamic, endFlow, gotoFlow, provider, state }; // <-- AÑADE ESTA LÍNEA
+const res = await EnviarIA(textoAdjunto, '', herramientas, {});                  // <-- USA "herramientas" AQUÍ
+await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
 
     // --- CAMINO 2: EL MENSAJE ES TEXTO ---
     } else {
@@ -498,10 +499,11 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
             }
         }
         
-        // El texto que acompaña (caption) se pasa, si no hay, se pasa vacío.
-        const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
-        const res = await EnviarIA(textoAdjunto, '', tools, {});
-        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
+       // El texto que acompaña (caption) se pasa, si no hay, se pasa vacío.
+const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
+const herramientas = { ctx, flowDynamic, endFlow, gotoFlow, provider, state }; // <-- AÑADE ESTA LÍNEA
+const res = await EnviarIA(textoAdjunto, '', herramientas, {});                  // <-- USA "herramientas" AQUÍ
+await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
 
     // --- CAMINO 2: EL MENSAJE ES TEXTO ---
     } else {
