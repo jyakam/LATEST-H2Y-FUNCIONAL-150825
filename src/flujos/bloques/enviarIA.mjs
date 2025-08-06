@@ -55,24 +55,35 @@ export async function EnviarIA(msj, guion, funciones, estado = {}) {
 
     // --- 🎙️ AUDIO ---
     if (tipoMensaje === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
-        console.log('📤 🎵 Transcribiendo nota de voz...');
+        console.log('📤 🎵 [PASO 1 de 2] Iniciando transcripción de nota de voz...');
         const datos = funciones.state.get('archivos') || [];
         const audios = datos.filter(item => item.tipo === ENUM_TIPO_ARCHIVO.NOTA_VOZ);
         let textoDeAudio = '';
 
-        for (const aud of audios) {
-            const id = generateUniqueFileName('mp3');
-            const mp3 = await convertOggToMp3(aud.ruta, id, BOT.VELOCIDAD);
-            textoDeAudio += (await EnviarAudioOpenAI(mp3)) + ' ';
+        if (audios.length > 0) {
+            for (const aud of audios) {
+                const id = generateUniqueFileName('mp3');
+                const mp3 = await convertOggToMp3(aud.ruta, id, BOT.VELOCIDAD);
+                textoDeAudio += (await EnviarAudioOpenAI(mp3)) + ' ';
+            }
+            textoDeAudio = textoDeAudio.trim();
+            console.log(`✅ 🔊 [PASO 1 de 2] Transcripción completada: "${textoDeAudio}"`);
         }
+
+        // Limpiamos el estado para la siguiente interacción
         await funciones.state.update({ archivos: [], tipoMensaje: undefined });
 
+        // AHORA, el paso clave que faltaba: tomamos el texto transcrito y lo enviamos a la IA conversacional.
+        console.log('📤 📄 [PASO 2 de 2] Enviando texto transcrito a la IA para respuesta...');
         const mensajeFinalAudio = `${contextoAdicional} ${promptExtra} ${textoDeAudio}`.trim().replace(/\s+/g, ' ');
+
+        // Log que querías ver para confirmar el "hand-off"
+        console.log(`🧠 Texto final (del audio) enviado a la IA: "${mensajeFinalAudio}"`);
         
-        console.log('🧠 [SNIP] Inicio del MENSAJE FINAL A LA IA (desde AUDIO):', mensajeFinalAudio.substring(0, 80) + '...');
-        console.log('🟣 [DEBUG] GUION O PROMPT DEL SISTEMA QUE SE ENVÍA A LA IA: [Largo:', guion.length, 'caracteres]'); // LOG RESTAURADO
+        // Llamamos a la función de texto con el resultado de la transcripción
         const res = await EnviarTextoOpenAI(mensajeFinalAudio, funciones.ctx.from, guion, estado);
-        console.log('📥 RESPUESTA IA AUDIO:', res); // LOG RESTAURADO
+        
+        console.log('📥 RESPUESTA IA (desde AUDIO):', res);
         return res;
     }
 
