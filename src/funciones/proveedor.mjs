@@ -1,7 +1,7 @@
 // src/proveedor.mjs
 
 // Log de depuración para confirmar que el archivo se carga
-console.log('🛠️ proveedor.mjs cargado en el despliegue');
+console.log('🛠️ proveedor.mjs cargado en el despligue');
 
 //TT MODULOS
 import { RevisarTemp } from '../funciones/directorios.mjs'
@@ -199,21 +199,20 @@ function ComprobarDestinatario(dest) {
   return null
 }
 
-//TT GUARDAR ARCHIVOS (VERSIÓN CORREGIDA Y MODERNIZADA)
+//TT GUARDAR ARCHIVOS (VERSIÓN FINAL Y CORRECTA)
 export async function GuardarArchivos(ctx) {
   try {
-    RevisarTemp(); // Nos aseguramos de que la carpeta temp exista
+    RevisarTemp(); 
 
-    // Usamos el método moderno y correcto: ctx.saveFile()
-    console.log('📄 [GuardarArchivos] Intentando guardar archivo con el método moderno ctx.saveFile...');
-    const localPath = await ctx.saveFile({ path: './temp' });
+    console.log('📄 [GuardarArchivos] Intentando guardar archivo con el método del proveedor...');
+    // CORRECCIÓN FINAL: Se usa PROVEEDOR.prov.saveFile y se le pasa ctx.message
+    const localPath = await PROVEEDOR.prov.saveFile(ctx.message, { path: './temp' });
     
     console.log(`✅ [GuardarArchivos] Archivo guardado exitosamente en: ${localPath}`);
     return localPath;
 
   } catch (error) {
-    // Si algo falla, ahora tendremos un log claro del error.
     console.error('❌ [GuardarArchivos] Error crítico al intentar guardar el archivo:', error);
-    return null; // Devolvemos null para que el flujo pueda continuar de forma controlada.
+    return null;
   }
 }
