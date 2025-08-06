@@ -351,78 +351,83 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
     // La detección de archivos ahora se hace ANTES de verificar el flag de productos.
 
     await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-    const detectar = await DetectarArchivos(ctx, state);
+    const tipoMensajeActual = state.get('tipoMensaje');
 
-    // DESPUÉS (El nuevo código mejorado)
-    if (state.get('tipoMensaje') === 1) { // Si es una imagen
-        const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
-        if (imagenes?.length > 0) {
-            const fileBuffer = fs.readFileSync(imagenes[0].ruta);
-            
-            // --- LÓGICA NUEVA: VERIFICAR SI ES COMPROBANTE DE PAGO ---
-            if (await esComprobanteDePagoIA(fileBuffer)) {
-                await state.update({ estado_pago: 'Comprobante Enviado' });
-                console.log('🧾 [PAGO] La imagen es un comprobante. Estado actualizado a "Comprobante Enviado".');
-            } else {
-                // Si no es comprobante, hace lo que hacía antes (reconocer producto)
-                const resultado = extraerNombreProductoDeVision(await enviarImagenProductoOpenAI(fileBuffer));
-                if (resultado && resultado !== '' && resultado !== 'No es un producto') {
-                    await state.update({ productoDetectadoEnImagen: true, productoReconocidoPorIA: resultado });
-                    console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
+    // --- CAMINO 1: EL MENSAJE ES IMAGEN O AUDIO ---
+    if (tipoMensajeActual === ENUM_TIPO_ARCHIVO.IMAGEN || tipoMensajeActual === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
+        
+        console.log(`🔀 [FLUJO] Detectado tipo de mensaje: ${tipoMensajeActual}. Se procesará como archivo multimedia.`);
+
+        // Lógica de pre-procesamiento para imágenes (comprobante, producto)
+        if (tipoMensajeActual === ENUM_TIPO_ARCHIVO.IMAGEN) {
+            const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
+            if (imagenes?.length > 0) {
+                const fileBuffer = fs.readFileSync(imagenes[0].ruta);
+                if (await esComprobanteDePagoIA(fileBuffer)) {
+                    await state.update({ estado_pago: 'Comprobante Enviado' });
+                    console.log('🧾 [PAGO] La imagen es un comprobante. Estado actualizado.');
+                } else {
+                    const resultado = extraerNombreProductoDeVision(await enviarImagenProductoOpenAI(fileBuffer));
+                    if (resultado && resultado !== '' && resultado !== 'No es un producto') {
+                        await state.update({ productoDetectadoEnImagen: true, productoReconocidoPorIA: resultado });
+                        console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
+                    }
                 }
             }
         }
-    }
-
-    // AgruparMensaje envuelve toda la lógica para procesar el texto final (de un mensaje de texto o de un audio transcrito).
-   // INICIA BLOQUE PARA REEMPLAZAR (Úsalo en ambos sitios)
-    AgruparMensaje(ctx, async (txt, ctx) => {
-        const phone = ctx.from.split('@')[0];
-        const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
-        const textoFinalUsuario = txt; // Usamos directamente el texto del caption o el texto del mensaje.
-        const contacto = Cache.getContactoByTelefono(phone);
-
-        // --- LÓGICA DE NEGOCIO ---
-        actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
-        if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
-        reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
-        Escribiendo(ctx);
-
-        // Se mantiene toda la lógica para construir el prompt y el contexto
-        const bloques = ARCHIVO.PROMPT_BLOQUES;
-        const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(textoFinalUsuario, state.get('ultimaConsulta') || '', state);
-        const promptSistema = armarPromptOptimizado(state, bloques, {
-            incluirProductos: esConsultaProductos,
-            categoriaProductos: categoriaDetectada,
-            incluirTestimonios: esConsultaTestimonios
-        });
-
-        const estado = {
-            esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-            contacto: contacto || {}
-        };
         
-        // La lógica de productos o no productos se mantiene intacta
-        if (!BOT.PRODUCTOS) {
-            const res = await EnviarIA(textoFinalUsuario, promptSistema, tools, estado);
-            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
-        } else {
-            if (!state.get('_productosFull')?.length) {
-                await cargarProductosAlState(state);
-                await state.update({ __productosCargados: true });
-            }
-            const productos = await obtenerProductosCorrectos(textoFinalUsuario, state);
-            const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
-            if (productos.length) {
-                await state.update({ productosUltimaSugerencia: productos });
-            }
-            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ...tools, promptExtra }, estado);
-            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
-        }
+        // El texto que acompaña (caption) se pasa, si no hay, se pasa vacío.
+        const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
+        const res = await EnviarIA(textoAdjunto, '', tools, {});
+        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
 
-        await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-    });
-// TERMINA BLOQUE PARA REEMPLAZAR
+    // --- CAMINO 2: EL MENSAJE ES TEXTO ---
+    } else {
+        console.log(`🔀 [FLUJO] Detectado tipo de mensaje: ${tipoMensajeActual}. Se procesará como texto.`);
+        AgruparMensaje(ctx, async (txt, ctx) => {
+            const phone = ctx.from.split('@')[0];
+            const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
+            const textoFinalUsuario = txt;
+            const contacto = Cache.getContactoByTelefono(phone);
+
+            actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
+            if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
+            reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
+            Escribiendo(ctx);
+
+            const bloques = ARCHIVO.PROMPT_BLOQUES;
+            const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(textoFinalUsuario, state.get('ultimaConsulta') || '', state);
+            const promptSistema = armarPromptOptimizado(state, bloques, {
+                incluirProductos: esConsultaProductos,
+                categoriaProductos: categoriaDetectada,
+                incluirTestimonios: esConsultaTestimonios
+            });
+
+            const estado = {
+                esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+                contacto: contacto || {}
+            };
+            
+            if (!BOT.PRODUCTOS) {
+                const res = await EnviarIA(textoFinalUsuario, promptSistema, tools, estado);
+                await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
+            } else {
+                if (!state.get('_productosFull')?.length) {
+                    await cargarProductosAlState(state);
+                    await state.update({ __productosCargados: true });
+                }
+                const productos = await obtenerProductosCorrectos(textoFinalUsuario, state);
+                const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
+                if (productos.length) {
+                    await state.update({ productosUltimaSugerencia: productos });
+                }
+                const res = await EnviarIA(textoFinalUsuario, promptSistema, { ...tools, promptExtra }, estado);
+                await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
+            }
+
+            await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+        });
+    }
   })
 
  .addAction({ capture: true }, async (ctx, tools) => {
@@ -467,78 +472,85 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
 
     // ✅✅✅ INICIO DE LA CORRECCIÓN (SECCIÓN CAPTURE) ✅✅✅
     await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-    const detectar = await DetectarArchivos(ctx, state);
+    const detectar = await DetectarArchivos(ctx, state);
 
-    // DESPUÉS (El nuevo código mejorado)
-    if (state.get('tipoMensaje') === 1) { // Si es una imagen
-        const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
-        if (imagenes?.length > 0) {
-            const fileBuffer = fs.readFileSync(imagenes[0].ruta);
-            
-            // --- LÓGICA NUEVA: VERIFICAR SI ES COMPROBANTE DE PAGO ---
-            if (await esComprobanteDePagoIA(fileBuffer)) {
-                await state.update({ estado_pago: 'Comprobante Enviado' });
-                console.log('🧾 [PAGO] La imagen es un comprobante. Estado actualizado a "Comprobante Enviado".');
-            } else {
-                // Si no es comprobante, hace lo que hacía antes (reconocer producto)
-                const resultado = extraerNombreProductoDeVision(await enviarImagenProductoOpenAI(fileBuffer));
-                if (resultado && resultado !== '' && resultado !== 'No es un producto') {
-                    await state.update({ productoDetectadoEnImagen: true, productoReconocidoPorIA: resultado });
-                    console.log(`🖼️ [IAINFO] Producto detectado en imagen: ${resultado}`);
+    const tipoMensajeActual = state.get('tipoMensaje');
+
+    // --- CAMINO 1: EL MENSAJE ES IMAGEN O AUDIO ---
+    if (tipoMensajeActual === ENUM_TIPO_ARCHIVO.IMAGEN || tipoMensajeActual === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
+        
+        console.log(`🔀 [FLUJO CAPTURE] Detectado tipo de mensaje: ${tipoMensajeActual}. Se procesará como archivo multimedia.`);
+
+        // Lógica de pre-procesamiento para imágenes (comprobante, producto)
+        if (tipoMensajeActual === ENUM_TIPO_ARCHIVO.IMAGEN) {
+            const imagenes = state.get('archivos')?.filter(item => item.tipo === 1);
+            if (imagenes?.length > 0) {
+                const fileBuffer = fs.readFileSync(imagenes[0].ruta);
+                if (await esComprobanteDePagoIA(fileBuffer)) {
+                    await state.update({ estado_pago: 'Comprobante Enviado' });
+                    console.log('🧾 [PAGO CAPTURE] La imagen es un comprobante. Estado actualizado.');
+                } else {
+                    const resultado = extraerNombreProductoDeVision(await enviarImagenProductoOpenAI(fileBuffer));
+                    if (resultado && resultado !== '' && resultado !== 'No es un producto') {
+                        await state.update({ productoDetectadoEnImagen: true, productoReconocidoPorIA: resultado });
+                        console.log(`🖼️ [IAINFO CAPTURE] Producto detectado en imagen: ${resultado}`);
+                    }
                 }
             }
         }
-    }
-     
-    // INICIA BLOQUE PARA PEGAR (2 de 2)
-    // INICIA BLOQUE PARA REEMPLAZAR (Úsalo en ambos sitios)
-    AgruparMensaje(ctx, async (txt, ctx) => {
-        const phone = ctx.from.split('@')[0];
-        const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
-        const textoFinalUsuario = txt; // Usamos directamente el texto del caption o el texto del mensaje.
-        const contacto = Cache.getContactoByTelefono(phone);
-
-        // --- LÓGICA DE NEGOCIO ---
-        actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
-        if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
-        reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
-        Escribiendo(ctx);
-
-        // Se mantiene toda la lógica para construir el prompt y el contexto
-        const bloques = ARCHIVO.PROMPT_BLOQUES;
-        const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(textoFinalUsuario, state.get('ultimaConsulta') || '', state);
-        const promptSistema = armarPromptOptimizado(state, bloques, {
-            incluirProductos: esConsultaProductos,
-            categoriaProductos: categoriaDetectada,
-            incluirTestimonios: esConsultaTestimonios
-        });
-
-        const estado = {
-            esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
-            contacto: contacto || {}
-        };
         
-        // La lógica de productos o no productos se mantiene intacta
-        if (!BOT.PRODUCTOS) {
-            const res = await EnviarIA(textoFinalUsuario, promptSistema, tools, estado);
-            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
-        } else {
-            if (!state.get('_productosFull')?.length) {
-                await cargarProductosAlState(state);
-                await state.update({ __productosCargados: true });
-            }
-            const productos = await obtenerProductosCorrectos(textoFinalUsuario, state);
-            const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
-            if (productos.length) {
-                await state.update({ productosUltimaSugerencia: productos });
-            }
-            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ...tools, promptExtra }, estado);
-            await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
-        }
+        // El texto que acompaña (caption) se pasa, si no hay, se pasa vacío.
+        const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
+        const res = await EnviarIA(textoAdjunto, '', tools, {});
+        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
 
-        await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
-    });
-// TERMINA BLOQUE PARA REEMPLAZAR
+    // --- CAMINO 2: EL MENSAJE ES TEXTO ---
+    } else {
+        console.log(`🔀 [FLUJO CAPTURE] Detectado tipo de mensaje: ${tipoMensajeActual}. Se procesará como texto.`);
+        AgruparMensaje(ctx, async (txt, ctx) => {
+            const phone = ctx.from.split('@')[0];
+            const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
+            const textoFinalUsuario = txt;
+            const contacto = Cache.getContactoByTelefono(phone);
+
+            actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
+            if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
+            reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
+            Escribiendo(ctx);
+
+            const bloques = ARCHIVO.PROMPT_BLOQUES;
+            const { esConsultaProductos, categoriaDetectada, esConsultaTestimonios } = await obtenerIntencionConsulta(textoFinalUsuario, state.get('ultimaConsulta') || '', state);
+            const promptSistema = armarPromptOptimizado(state, bloques, {
+                incluirProductos: esConsultaProductos,
+                categoriaProductos: categoriaDetectada,
+                incluirTestimonios: esConsultaTestimonios
+            });
+
+            const estado = {
+                esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+                contacto: contacto || {}
+            };
+            
+            if (!BOT.PRODUCTOS) {
+                const res = await EnviarIA(textoFinalUsuario, promptSistema, tools, estado);
+                await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
+            } else {
+                if (!state.get('_productosFull')?.length) {
+                    await cargarProductosAlState(state);
+                    await state.update({ __productosCargados: true });
+                }
+                const productos = await obtenerProductosCorrectos(textoFinalUsuario, state);
+                const promptExtra = productos.length ? generarContextoProductosIA(productos, state) : '';
+                if (productos.length) {
+                    await state.update({ productosUltimaSugerencia: productos });
+                }
+                const res = await EnviarIA(textoFinalUsuario, promptSistema, { ...tools, promptExtra }, estado);
+                await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
+            }
+
+            await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
+        });
+    }
     return tools.fallBack();
  });
 
