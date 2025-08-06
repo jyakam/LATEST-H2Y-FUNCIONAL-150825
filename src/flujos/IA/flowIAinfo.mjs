@@ -408,11 +408,14 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
 
     // AgruparMensaje envuelve toda la lógica para procesar el texto final (de un mensaje de texto o de un audio transcrito).
    // INICIA BLOQUE PARA REEMPLAZAR (Úsalo en ambos sitios)
-    AgruparMensaje(ctx, async (txt) => {
-        let textoFinalUsuario = txt; // Por defecto, es el texto que llega del agrupador
+    AgruparMensaje(ctx, async (txt, ctx) => { // <-- Nota: ahora también recibe 'ctx'
+        // Definimos las herramientas y variables que necesitamos DENTRO del bloque
+        const phone = ctx.from.split('@')[0];
+        const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
+        let textoFinalUsuario = txt;
         let contacto = Cache.getContactoByTelefono(phone);
 
-        // --- INICIO: LÓGICA CORREGIDA DE AUDIO E IMAGEN ---
+        // --- LÓGICA DE AUDIO E IMAGEN ---
         const tipoMensaje = state.get('tipoMensaje');
         let contextoAdicional = '';
 
@@ -427,9 +430,8 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         if (contextoAdicional) {
             console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
         }
-        // --- FIN: LÓGICA CORREGIDA ---
-
-        // El resto de tu código de negocio sigue igual, pero usando 'textoFinalUsuario'
+        
+        // El resto de tu código de negocio sigue igual, usando 'textoFinalUsuario'
         actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
         if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
         reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
@@ -450,7 +452,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         };
         
         if (!BOT.PRODUCTOS) {
-            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
+            const res = await EnviarIA(textoFinalUsuario, promptSistema, tools, estado);
             await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
         } else {
             if (!state.get('_productosFull')?.length) {
@@ -462,7 +464,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
             if (productos.length) {
                 await state.update({ productosUltimaSugerencia: productos });
             }
-            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra }, estado);
+            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ...tools, promptExtra }, estado);
             await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
         }
 
@@ -538,11 +540,14 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
      
     // INICIA BLOQUE PARA PEGAR (2 de 2)
     // INICIA BLOQUE PARA REEMPLAZAR (Úsalo en ambos sitios)
-    AgruparMensaje(ctx, async (txt) => {
-        let textoFinalUsuario = txt; // Por defecto, es el texto que llega del agrupador
+    AgruparMensaje(ctx, async (txt, ctx) => { // <-- Nota: ahora también recibe 'ctx'
+        // Definimos las herramientas y variables que necesitamos DENTRO del bloque
+        const phone = ctx.from.split('@')[0];
+        const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
+        let textoFinalUsuario = txt;
         let contacto = Cache.getContactoByTelefono(phone);
 
-        // --- INICIO: LÓGICA CORREGIDA DE AUDIO E IMAGEN ---
+        // --- LÓGICA DE AUDIO E IMAGEN ---
         const tipoMensaje = state.get('tipoMensaje');
         let contextoAdicional = '';
 
@@ -557,9 +562,8 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         if (contextoAdicional) {
             console.log(`🗣️ [CONTEXTO] Detectado tipo de mensaje: ${tipoMensaje}. Contexto añadido.`);
         }
-        // --- FIN: LÓGICA CORREGIDA ---
-
-        // El resto de tu código de negocio sigue igual, pero usando 'textoFinalUsuario'
+        
+        // El resto de tu código de negocio sigue igual, usando 'textoFinalUsuario'
         actualizarHistorialConversacion(textoFinalUsuario, 'cliente', state);
         if (ComprobrarListaNegra(ctx) || !BOT.ESTADO) return gotoFlow(idleFlow);
         reset(ctx, gotoFlow, BOT.IDLE_TIME * 60);
@@ -580,7 +584,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
         };
         
         if (!BOT.PRODUCTOS) {
-            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra: '' }, estado);
+            const res = await EnviarIA(textoFinalUsuario, promptSistema, tools, estado);
             await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
         } else {
             if (!state.get('_productosFull')?.length) {
@@ -592,7 +596,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
             if (productos.length) {
                 await state.update({ productosUltimaSugerencia: productos });
             }
-            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ctx, flowDynamic, endFlow, gotoFlow, provider, state, promptExtra }, estado);
+            const res = await EnviarIA(textoFinalUsuario, promptSistema, { ...tools, promptExtra }, estado);
             await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoFinalUsuario);
         }
 
