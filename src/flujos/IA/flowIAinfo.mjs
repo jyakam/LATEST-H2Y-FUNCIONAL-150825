@@ -594,23 +594,35 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
     const respuestaTextoIA = respuestaFinal.respuesta || '';
     
     // --- INICIO: LÓGICA AÑADIDA ---
-    // 1. "TOMAR APUNTES" DE PRODUCTOS OFRECIDOS
+  // 1. "TOMAR APUNTES" DE PRODUCTOS OFRECIDOS (VERSIÓN MEJORADA Y PERSISTENTE)
     const productosOfrecidos = state.get('productosOfrecidos') || [];
     const matchesProductos = [...respuestaTextoIA.matchAll(/🧩PRODUCTO_OFRECIDO\[(.*?)\]🧩/g)];
     
     if (matchesProductos.length > 0) {
-        console.log(`📝 [MEMORIA] Detectados ${matchesProductos.length} productos ofrecidos para memorizar.`);
+        console.log(`📝 [MEMORIA] La memoria actual tiene ${productosOfrecidos.length} productos.`);
+        console.log(`📝 [MEMORIA] Se encontraron ${matchesProductos.length} nuevos marcadores de producto en la respuesta de la IA.`);
+
+        let productosNuevosAnadidos = 0;
         for (const match of matchesProductos) {
             try {
                 const productoJSON = JSON.parse(match[1]);
-                if (!productosOfrecidos.some(p => p.sku === productoJSON.sku)) {
+                // Se verifica que el producto no exista ya en la memoria por su SKU
+                if (productoJSON.sku && !productosOfrecidos.some(p => p.sku === productoJSON.sku)) {
                     productosOfrecidos.push(productoJSON);
+                    productosNuevosAnadidos++;
                 }
             } catch (e) {
                 console.error('❌ Error parseando JSON de PRODUCTO_OFRECIDO:', match[1]);
             }
         }
-        await state.update({ productosOfrecidos: productosOfrecidos.slice(-5) }); // Guarda solo los últimos 5
+
+        if (productosNuevosAnadidos > 0) {
+            // SE ELIMINA EL LÍMITE .slice(-5) PARA GUARDAR TODOS LOS PRODUCTOS
+            await state.update({ productosOfrecidos: productosOfrecidos });
+            console.log(`✅ [MEMORIA] Memoria actualizada. Ahora contiene ${productosOfrecidos.length} productos.`);
+        } else {
+            console.log('🔵 [MEMORIA] No se añadieron productos nuevos (probablemente ya estaban en la memoria).');
+        }
     }
 
     // 2. DETECTAR FORMA DE PAGO
