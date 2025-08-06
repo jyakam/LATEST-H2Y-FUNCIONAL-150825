@@ -132,7 +132,7 @@ export async function Escribiendo(ctx) {
  * La función `ObtenerGrupos`:
  * 1. Comprueba si el proveedor es `Baileys` y si está conectado.
  * 2. Si está conectado, filtra los contactos para encontrar aquellos que son grupos de WhatsApp
- *    (identificados por la presencia de `'@g.us'` en el ID).
+ * (identificados por la presencia de `'@g.us'` en el ID).
  * 3. Devuelve una lista de estos grupos. Si no está conectado, devuelve `'DESCONECTADO'`.
  * 4. Si no hay proveedor asignado, devuelve `null`.
  */
@@ -199,16 +199,21 @@ function ComprobarDestinatario(dest) {
   return null
 }
 
-//TT GUARDAR ARCHIVOS
+//TT GUARDAR ARCHIVOS (VERSIÓN CORREGIDA Y MODERNIZADA)
 export async function GuardarArchivos(ctx) {
-  RevisarTemp()
-  //ss si el proveedr es Baileys
-  if (PROVEEDOR.name === ENUNPROV.BAILEYS) {
-    if (PROVEEDOR.prov.store?.state?.connection === 'open') {
-      const localPath = await PROVEEDOR.prov.saveFile(ctx, { path: './temp' })
-      console.log(localPath)
-      return localPath
-    }
+  try {
+    RevisarTemp(); // Nos aseguramos de que la carpeta temp exista
+
+    // Usamos el método moderno y correcto: ctx.saveFile()
+    console.log('📄 [GuardarArchivos] Intentando guardar archivo con el método moderno ctx.saveFile...');
+    const localPath = await ctx.saveFile({ path: './temp' });
+    
+    console.log(`✅ [GuardarArchivos] Archivo guardado exitosamente en: ${localPath}`);
+    return localPath;
+
+  } catch (error) {
+    // Si algo falla, ahora tendremos un log claro del error.
+    console.error('❌ [GuardarArchivos] Error crítico al intentar guardar el archivo:', error);
+    return null; // Devolvemos null para que el flujo pueda continuar de forma controlada.
   }
-  return null
 }
