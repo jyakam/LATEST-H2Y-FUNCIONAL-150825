@@ -13,6 +13,23 @@ console.log('🔧 APPSHEET_KEY:', appsheetKey ? 'Definido' : 'No definido')
 export const APPSHEETCONFIG = new AppSheetUser(appsheetId, appsheetKey)
 console.log('🔧 APPSHEETCONFIG:', APPSHEETCONFIG ? 'Creado' : 'No creado')
 
+// --- DEBUG FLAGS (logs controlados por entorno) ---
+const DEBUG_CONTACTOS = process.env.DEBUG_CONTACTOS === '1'
+const DEBUG_PRODUCTOS = process.env.DEBUG_PRODUCTOS === '1'
+// cuántos elementos queremos ver como “muestra” (por defecto 5)
+const DEBUG_SAMPLE_N = Number.parseInt(process.env.DEBUG_SAMPLE_N || '5', 10)
+
+// Pequeño helper para imprimir una muestra segura de arrays grandes
+function printSample(label, arr, n = DEBUG_SAMPLE_N) {
+  try {
+    const total = Array.isArray(arr) ? arr.length : 0
+    const slice = Array.isArray(arr) ? arr.slice(0, Math.max(0, Math.min(n, total))) : arr
+    console.log(`${label} total: ${total}. Mostrando ${Array.isArray(arr) ? slice.length : 0}:`, slice)
+  } catch (e) {
+    console.log(`${label} (error imprimiendo muestra):`, e?.message || e)
+  }
+}
+
 //FF CONFIGURACION DE BOT
 export const BOT = {
   //BOT
@@ -80,7 +97,7 @@ export async function Inicializar() {
   try {
     console.log('🔍 Probando conexión con la tabla PRODUCTOS')
     const productosData = await getTable(APPSHEETCONFIG, 'PRODUCTOS')
-    console.log('🔍 Datos de PRODUCTOS:', productosData)
+    // console.log('🔍 Datos de PRODUCTOS:', productosData) // Comentado para evitar volcado masivo
   } catch (err) {
     console.error('❌ Error al intentar leer la tabla PRODUCTOS:', err.message)
   }
@@ -200,7 +217,13 @@ export async function ActualizarMensajes() {
 export async function ActualizarContactos() {
   try {
     console.log('🔄 [CONTACTOS] Intentando cargar contactos desde AppSheet')
-    console.log('🔍 [DEBUG] Contactos iniciales en LISTA_CONTACTOS:', CONTACTOS.LISTA_CONTACTOS); // Añadido
+        // console.log('🔍 [DEBUG] Contactos iniciales en LISTA_CONTACTOS:', CONTACTOS.LISTA_CONTACTOS) // Comentado para evitar volcado masivo
+    if (DEBUG_CONTACTOS) {
+      printSample('🔍 [CONTACTOS] Lista inicial', CONTACTOS.LISTA_CONTACTOS)
+    } else {
+      console.log(`🔍 [CONTACTOS] Lista inicial: ${CONTACTOS?.LISTA_CONTACTOS?.length || 0} contactos`)
+    }
+
     await cargarContactosDesdeAppSheet()
     CONTACTOS.LISTA_CONTACTOS = getCacheContactos()
     console.log(`🗃️ [CONTACTOS] Cache sincronizada con ${CONTACTOS.LISTA_CONTACTOS.length} contactos`)
