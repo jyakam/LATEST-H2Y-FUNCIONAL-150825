@@ -72,54 +72,57 @@ export async function ActualizarContacto(phone, datosNuevos = {}) {
     try {
         const contactoPrevio = getContactoByTelefono(phone);
 
-        let datosBase = {};
+        let contactoParaEnviar = {};
+
         if (contactoPrevio) {
-            datosBase = { ...contactoPrevio };
+            // --- LÓGICA PARA CONTACTOS EXISTENTES (SE MANTIENE IGUAL) ---
+            console.log(`🔄 [CONTACTOS] Actualizando contacto existente: ${phone}`);
+            contactoParaEnviar = { ...contactoPrevio, ...datosNuevos };
         } else {
-            console.log(`🆕 [CONTACTOS] Creando contacto base para ${phone}`);
-            datosBase = {
+            // --- LÓGICA CORREGIDA PARA CONTACTOS NUEVOS ---
+            console.log(`🆕 [CONTACTOS] Creando estructura COMPLETA para nuevo contacto: ${phone}`);
+            
+            // 1. Creamos una estructura base con TODAS las columnas válidas, inicializadas en vacío.
+            const estructuraCompleta = {};
+            for (const columna of COLUMNAS_VALIDAS) {
+                estructuraCompleta[columna] = ''; // Usamos '' como valor por defecto.
+            }
+
+            // 2. Llenamos la estructura completa con los datos que SÍ tenemos para un nuevo contacto.
+            contactoParaEnviar = {
+                ...estructuraCompleta,
+                ...datosNuevos, // Aplicamos datos como NOMBRE: 'Sin Nombre' que vienen desde flowIAinfo
                 TELEFONO: phone,
                 FECHA_PRIMER_CONTACTO: new Date().toLocaleDateString('es-CO'),
-                ETIQUETA: 'Cliente',
+                ETIQUETA: 'Nuevo', // Cambiado a 'Nuevo' para consistencia con los logs
                 RESP_BOT: 'Sí'
             };
         }
 
-        const contactoFusionado = {
-            ...datosBase,
-            ...datosNuevos,
-            FECHA_ULTIMO_CONTACTO: new Date().toLocaleDateString('es-CO')
-        };
+        // 3. Siempre actualizamos la fecha del último contacto
+        contactoParaEnviar.FECHA_ULTIMO_CONTACTO = new Date().toLocaleDateString('es-CO');
 
-        // 4. LIMPIEZA FINAL (CON TU VALIDACIÓN REINCORPORADA)
-        const contactoLimpio = {};
-        for (const columna of COLUMNAS_VALIDAS) {
-            const valor = contactoFusionado[columna];
-            // Solo incluimos el campo si es válido Y, en caso de ser un string, no está vacío.
-            if (valor !== undefined && valor !== null) {
-                if (typeof valor === 'string' && valor.trim() === '') {
-                    // Si es un string vacío, no lo incluimos. Tu lógica original era mejor.
-                    continue;
-                }
-                contactoLimpio[columna] = valor;
-            }
-        }
-        
-        // Garantía Anti-Corrupción
-        contactoLimpio.TELEFONO = phone;
+        // 4. Garantía Anti-Corrupción: Aseguramos que el teléfono sea el correcto
+        contactoParaEnviar.TELEFONO = phone;
 
         // 5. ENVIAR A APPSHEET Y ACTUALIZAR CACHÉ
-        const resp = await postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoLimpio], propiedades);
+        console.log(`📦 [CONTACTOS] Objeto final a enviar a AppSheet para ${phone}:`, contactoParaEnviar);
+        const resp = await postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoParaEnviar], propiedades);
         
-        if (!resp) {
-          console.error(`❌ [CONTACTOS] postTable devolvió null/undefined para ${phone}`);
-          actualizarContactoEnCache(contactoPrevio || datosBase);
-          return;
+        if (!resp || (Array.isArray(resp) && resp.length === 0)) {
+            console.error(`❌ [CONTACTOS] postTable devolvió una respuesta vacía o fallida para ${phone}. No se actualizó la caché con los nuevos datos.`);
+            // IMPORTANTE: Si falla, no actualizamos la caché con datos que no se guardaron.
+            // Se podría actualizar con los datos previos si existían.
+            if(contactoPrevio) {
+                actualizarContactoEnCache(contactoPrevio);
+            }
+            return;
         }
 
-        actualizarContactoEnCache(contactoLimpio);
+        // Si el guardado fue exitoso, actualizamos la caché local con el objeto completo.
+        actualizarContactoEnCache(contactoParaEnviar);
         
-        console.log(`✅ [CONTACTOS] Contacto ${phone} procesado y actualizado en caché.`);
+        console.log(`✅ [CONTACTOS] Contacto ${phone} procesado y guardado en AppSheet y caché.`);
 
     } catch (error) {
         console.error(`❌ [CONTACTOS] Error fatal en ActualizarContacto para ${phone}:`, error.message, error.stack);
