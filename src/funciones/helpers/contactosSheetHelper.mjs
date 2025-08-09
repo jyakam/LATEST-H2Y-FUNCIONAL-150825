@@ -3,13 +3,14 @@ import { ObtenerFechaActual } from '../../funciones/tiempo.mjs'
 import { APPSHEETCONFIG } from '../../config/bot.mjs'
 // IMPORTANTE: importa la función para actualizar la cache
 import { getContactoByTelefono, actualizarContactoEnCache } from './cacheContactos.mjs'
+// PASO 1: IMPORTAMOS NUESTRO NUEVO GESTOR DE LA FILA
+import { addTask } from './taskQueue.mjs'
 
 const PROPIEDADES = { UserSettings: { DETECTAR: false } }
 const HOJA_CONTACTOS = process.env.PAG_CONTACTOS
 
 export async function ActualizarFechasContacto(contacto, phone) {
   const hoy = ObtenerFechaActual()
-  // BLINDAJE: Trae siempre el contacto completo de la caché
   let contactoCompleto = getContactoByTelefono(phone) || contacto || {}
   const datos = {
     ...contactoCompleto,
@@ -21,13 +22,15 @@ export async function ActualizarFechasContacto(contacto, phone) {
   console.log(`🕓 [FECHAS] Contacto ${phone} →`, datos)
 
   try {
-    await postTable(APPSHEETCONFIG, HOJA_CONTACTOS, [datos], PROPIEDADES)
+    // PASO 2: USAMOS LA FILA PARA LA TAREA
+    // En lugar de llamar a postTable directamente, le pedimos a nuestro gestor que lo haga.
+    await addTask(() => postTable(APPSHEETCONFIG, HOJA_CONTACTOS, [datos], PROPIEDADES))
+    
     console.log(`📆 Contacto ${phone} actualizado con fechas.`)
-    // Actualiza la cache local con los datos nuevos
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
   } catch (err) {
-    console.log(`❌ Error actualizando fechas para ${phone}:`, err.message)
-    // Opcional: también actualiza la cache local aunque falle el postTable,
+    console.log(`❌ Error actualizando fechas para ${phone} via queue:`, err.message)
+    // Si la tarea en la fila falla, actualizamos la caché local para mantener la consistencia interna.
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
     console.log(`⚠️ Cache actualizada localmente para ${phone} pese a error en AppSheet`)
   }
@@ -48,7 +51,6 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
     return
   }
 
-  // BLINDAJE: Trae siempre el contacto completo de la caché
   let contactoCompleto = getContactoByTelefono(phone) || contacto || {}
 
   const datos = {
@@ -58,15 +60,14 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
   }
 
   try {
-    await postTable(APPSHEETCONFIG, HOJA_CONTACTOS, [datos], PROPIEDADES)
+    // PASO 2: USAMOS LA FILA TAMBIÉN AQUÍ
+    await addTask(() => postTable(APPSHEETCONFIG, HOJA_CONTACTOS, [datos], PROPIEDADES))
+
     console.log(`📝 Resumen actualizado para ${phone}`)
-    // Actualiza la cache local con el resumen nuevo y todos los datos previos
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
   } catch (err) {
-    console.log(`❌ Error guardando resumen para ${phone}:`, err.message)
-    // Opcional: también actualiza la cache local aunque falle el postTable
+    console.log(`❌ Error guardando resumen para ${phone} via queue:`, err.message)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
     console.log(`⚠️ Cache actualizada localmente para ${phone} pese a error en AppSheet`)
   }
 }
-
