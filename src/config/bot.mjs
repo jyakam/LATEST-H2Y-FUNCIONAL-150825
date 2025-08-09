@@ -30,6 +30,19 @@ function printSample(label, arr, n = DEBUG_SAMPLE_N) {
   }
 }
 
+// === DIAGNÓSTICO DE ENV - NO ELIMINAR SIN AVISAR ===
+console.log('🔎 ENV RAW →', {
+  DEBUG_CONTACTOS: process.env.DEBUG_CONTACTOS,
+  DEBUG_PRODUCTOS: process.env.DEBUG_PRODUCTOS,
+  DEBUG_SAMPLE_N: process.env.DEBUG_SAMPLE_N
+})
+console.log(`🔎 ENV PARSED → contactos=${DEBUG_CONTACTOS ? 1 : 0}, productos=${DEBUG_PRODUCTOS ? 1 : 0}, sample=${DEBUG_SAMPLE_N}`)
+console.log('🔎 CHECKS → eq1:', {
+  contactos_eq_1: process.env.DEBUG_CONTACTOS === '1',
+  productos_eq_1: process.env.DEBUG_PRODUCTOS === '1'
+})
+// === FIN DIAGNÓSTICO DE ENV ===
+
 //FF CONFIGURACION DE BOT
 export const BOT = {
   //BOT
