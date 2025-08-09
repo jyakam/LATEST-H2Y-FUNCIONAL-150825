@@ -9,6 +9,8 @@ import {
   getContactoByTelefono,
   actualizarContactoEnCache
 } from '../funciones/helpers/cacheContactos.mjs'
+// ✅ NUEVA LÍNEA AÑADIDA
+import { addTask } from '../funciones/helpers/taskQueue.mjs'
 
 const propiedades = {
   UserSettings: { DETECTAR: false }
@@ -51,9 +53,10 @@ async function postTableWithRetry(config, table, data, props, retries = 3, delay
       return resp
     } catch (err) {
       console.warn(`⚠️ Intento ${i + 1} fallido para postTable: ${err.message}, reintentando en ${delay}ms...`)
-      if (i === retries - 1) {
+     if (i === retries - 1) {
         console.error(`❌ Error en postTable tras ${retries} intentos: ${err.message}`)
-        return []
+        // ✅ CAMBIO: Relanzamos el error para que la fila se entere de que la tarea falló definitivamente.
+        throw err;
       }
       await new Promise(resolve => setTimeout(resolve, delay))
     }
@@ -67,7 +70,7 @@ export function SincronizarContactos() {
 //=============== INICIA EL BLOQUE FINAL Y MÁS SEGURO ===============
 
 export async function ActualizarContacto(phone, datosNuevos = {}) {
-    console.log(`📥 [CONTACTOS] Iniciando ActualizarContacto para ${phone}`);
+    console.log(`📥 [CONTACTOS] Solicitud para ActualizarContacto para ${phone}. Se enviará a la fila.`);
 
     try {
         const contactoPrevio = getContactoByTelefono(phone);
@@ -75,57 +78,43 @@ export async function ActualizarContacto(phone, datosNuevos = {}) {
         let contactoParaEnviar = {};
 
         if (contactoPrevio) {
-            // --- LÓGICA PARA CONTACTOS EXISTENTES (SE MANTIENE IGUAL) ---
-            console.log(`🔄 [CONTACTOS] Actualizando contacto existente: ${phone}`);
+            // Lógica para contactos existentes: fusiona los datos.
             contactoParaEnviar = { ...contactoPrevio, ...datosNuevos };
         } else {
-            // --- LÓGICA CORREGIDA PARA CONTACTOS NUEVOS ---
+            // Lógica para contactos nuevos: crea la estructura COMPLETA.
             console.log(`🆕 [CONTACTOS] Creando estructura COMPLETA para nuevo contacto: ${phone}`);
-            
-            // 1. Creamos una estructura base con TODAS las columnas válidas, inicializadas en vacío.
             const estructuraCompleta = {};
             for (const columna of COLUMNAS_VALIDAS) {
-                estructuraCompleta[columna] = ''; // Usamos '' como valor por defecto.
+                estructuraCompleta[columna] = ''; // Inicializa todas las columnas para evitar el error de "Bad Request".
             }
-
-            // 2. Llenamos la estructura completa con los datos que SÍ tenemos para un nuevo contacto.
             contactoParaEnviar = {
                 ...estructuraCompleta,
-                ...datosNuevos, // Aplicamos datos como NOMBRE: 'Sin Nombre' que vienen desde flowIAinfo
+                ...datosNuevos,
                 TELEFONO: phone,
                 FECHA_PRIMER_CONTACTO: new Date().toLocaleDateString('es-CO'),
-                ETIQUETA: 'Nuevo', // Cambiado a 'Nuevo' para consistencia con los logs
+                ETIQUETA: 'Nuevo',
                 RESP_BOT: 'Sí'
             };
         }
 
-        // 3. Siempre actualizamos la fecha del último contacto
+        // Siempre actualiza la fecha del último contacto y asegura el teléfono.
         contactoParaEnviar.FECHA_ULTIMO_CONTACTO = new Date().toLocaleDateString('es-CO');
-
-        // 4. Garantía Anti-Corrupción: Aseguramos que el teléfono sea el correcto
         contactoParaEnviar.TELEFONO = phone;
 
-        // 5. ENVIAR A APPSHEET Y ACTUALIZAR CACHÉ
-        console.log(`📦 [CONTACTOS] Objeto final a enviar a AppSheet para ${phone}:`, contactoParaEnviar);
-        const resp = await postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoParaEnviar], propiedades);
+        // ✅ CAMBIO PRINCIPAL: Envolvemos la llamada a la base de datos en nuestro gestor de tareas.
+        // Creamos la "tarea" que es la función que queremos ejecutar en la fila.
+        const task = () => postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoParaEnviar], propiedades);
         
-        if (!resp || (Array.isArray(resp) && resp.length === 0)) {
-            console.error(`❌ [CONTACTOS] postTable devolvió una respuesta vacía o fallida para ${phone}. No se actualizó la caché con los nuevos datos.`);
-            // IMPORTANTE: Si falla, no actualizamos la caché con datos que no se guardaron.
-            // Se podría actualizar con los datos previos si existían.
-            if(contactoPrevio) {
-                actualizarContactoEnCache(contactoPrevio);
-            }
-            return;
-        }
-
-        // Si el guardado fue exitoso, actualizamos la caché local con el objeto completo.
+        // Añadimos la tarea a la fila y esperamos a que se complete.
+        await addTask(task);
+        
+        // Si la tarea en la fila fue exitosa (no hubo error), actualizamos la caché local.
         actualizarContactoEnCache(contactoParaEnviar);
-        
-        console.log(`✅ [CONTACTOS] Contacto ${phone} procesado y guardado en AppSheet y caché.`);
+        console.log(`✅ [CONTACTOS] Tarea para ${phone} completada. Contacto procesado y actualizado en caché.`);
 
     } catch (error) {
-        console.error(`❌ [CONTACTOS] Error fatal en ActualizarContacto para ${phone}:`, error.message, error.stack);
+        // Este error se captura si la tarea en la fila falla después de todos sus reintentos.
+        console.error(`❌ [CONTACTOS] Error fatal en la tarea de ActualizarContacto para ${phone} via queue:`, error.message);
     }
 }
 
