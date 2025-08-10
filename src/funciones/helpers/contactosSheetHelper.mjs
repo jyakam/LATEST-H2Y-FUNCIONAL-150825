@@ -1,5 +1,6 @@
-import { postTable } from 'appsheet-connect'
+import { postTable, AppSheetUser } from 'appsheet-connect' // Añadimos AppSheetUser
 import { ObtenerFechaActual } from '../../funciones/tiempo.mjs'
+import { appsheetId, appsheetKey } from '../../config/bot.mjs' // Cambiamos la importación
 import { APPSHEETCONFIG } from '../../config/bot.mjs'
 // IMPORTANTE: importa la función para actualizar la cache
 import { getContactoByTelefono, actualizarContactoEnCache } from './cacheContactos.mjs'
