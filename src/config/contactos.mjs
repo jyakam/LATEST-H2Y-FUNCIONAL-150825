@@ -38,7 +38,30 @@ const COLUMNAS_VALIDAS = [
 async function postTableWithRetry(config, table, data, props, retries = 3, delay = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
-      const resp = await postTable(JSON.parse(JSON.stringify(config)), table, data, props)
+      // [DEBUG] Payload que REALMENTE se manda a AppSheet (pre-llamada)
+      try {
+        const accion = (props && (props.Action || props.action)) || 'Add';
+        const primerRow = Array.isArray(data) ? data[0] : data;
+        console.log(`[DEBUG AppSheet] PRE-POST Acción=${accion} Tabla=${table}`);
+        if (Array.isArray(data)) {
+          console.log(`[DEBUG AppSheet] PRE-POST TotalRows=${data.length}`);
+        }
+        console.log('[DEBUG AppSheet] PRE-POST Row[0]:', JSON.stringify(primerRow, null, 2));
+      } catch (e) {
+        console.log('[DEBUG AppSheet] Error log PRE-POST:', e?.message);
+      }
+
+      // 👇 Llamada original SIN cambios funcionales
+      const resp = await postTable(JSON.parse(JSON.stringify(config)), table, data, props);
+
+      // [DEBUG] Respuesta OK de AppSheet
+      try {
+        const printable = typeof resp === 'string' ? resp : JSON.stringify(resp, null, 2);
+        console.log(`[DEBUG AppSheet] RESP OK Tabla=${table} ->`, printable);
+      } catch (e) {
+        console.log('[DEBUG AppSheet] Error log RESP OK:', e?.message);
+      }
+
       if (!resp) {
         console.warn(`⚠️ Respuesta vacía de postTable para tabla ${table}`)
         return []
@@ -51,9 +74,29 @@ async function postTableWithRetry(config, table, data, props, retries = 3, delay
         }
       }
       return resp
+
     } catch (err) {
+      // [DEBUG] Respuesta de error detallada (cuerpo y status si vienen)
+      try {
+        console.log(`[DEBUG AppSheet] RESP ERROR Tabla=${table} ->`, err?.message);
+        if (err?.response) {
+          console.log('[DEBUG AppSheet] ERROR STATUS:', err.response.status);
+          try {
+            console.log('[DEBUG AppSheet] ERROR BODY:', JSON.stringify(err.response.data, null, 2));
+          } catch (_) {
+            console.log('[DEBUG AppSheet] ERROR BODY (raw):', err.response.data);
+          }
+        } else if (err?.body) {
+          console.log('[DEBUG AppSheet] ERROR BODY (body):', err.body);
+        } else if (err?.stack) {
+          console.log('[DEBUG AppSheet] ERROR STACK:', err.stack);
+        }
+      } catch (e) {
+        console.log('[DEBUG AppSheet] Error log RESP ERROR:', e?.message);
+      }
+
       console.warn(`⚠️ Intento ${i + 1} fallido para postTable: ${err.message}, reintentando en ${delay}ms...`)
-     if (i === retries - 1) {
+      if (i === retries - 1) {
         console.error(`❌ Error en postTable tras ${retries} intentos: ${err.message}`)
         // ✅ CAMBIO: Relanzamos el error para que la fila se entere de que la tarea falló definitivamente.
         throw err;
@@ -62,6 +105,7 @@ async function postTableWithRetry(config, table, data, props, retries = 3, delay
     }
   }
 }
+
 
 export function SincronizarContactos() {
   // ... igual a tu versión, sin cambios ...
