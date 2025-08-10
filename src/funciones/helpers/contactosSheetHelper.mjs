@@ -24,7 +24,7 @@ export async function ActualizarFechasContacto(contacto, phone) {
   try {
     // PASO 2: USAMOS LA FILA PARA LA TAREA
     // En lugar de llamar a postTable directamente, le pedimos a nuestro gestor que lo haga.
-    await addTask(() => postTable(APPSHEETCONFIG, HOJA_CONTACTOS, [datos], PROPIEDADES))
+    await addTask(() => postTable(JSON.parse(JSON.stringify(APPSHEETCONFIG)), HOJA_CONTACTOS, [datos], PROPIEDADES))
     
     console.log(`📆 Contacto ${phone} actualizado con fechas.`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
@@ -61,7 +61,7 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
 
   try {
     // PASO 2: USAMOS LA FILA TAMBIÉN AQUÍ
-    await addTask(() => postTable(APPSHEETCONFIG, HOJA_CONTACTOS, [datos], PROPIEDADES))
+    await addTask(() => postTable(JSON.parse(JSON.stringify(APPSHEETCONFIG)), HOJA_CONTACTOS, [datos], PROPIEDADES))
 
     console.log(`📝 Resumen actualizado para ${phone}`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
