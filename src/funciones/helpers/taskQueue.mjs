@@ -49,10 +49,18 @@ async function processQueue() {
  */
 export function addTask(task) {
     return new Promise((resolve, reject) => {
-        console.log(`📥 [QUEUE] Nueva tarea añadida a la fila. Total en fila ahora: ${queue.length + 1}`);
-        // Añadimos la tarea y sus manejadores de promesa a la fila.
+        try {
+            const now = new Date().toISOString();
+            console.log(`📥 [QUEUE] Nueva tarea añadida a la fila. Total en fila ahora: ${queue.length + 1} @ ${now}`);
+        } catch (e) {
+            console.log('[DEBUG QUEUE] Error log addTask:', e?.message);
+        }
+
+        // Añadimos la tarea y sus manejadores de promesa a la fila (MISMA LÓGICA)
         queue.push({ task, resolve, reject });
-        // Intentamos iniciar el procesamiento. Si ya está ocupado, la tarea simplemente esperará su turno.
+
+        // Intentamos iniciar el procesamiento. Si ya está ocupado, la tarea simplemente esperará su turno (MISMA LÓGICA)
         processQueue();
     });
 }
+
