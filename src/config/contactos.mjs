@@ -104,7 +104,16 @@ export async function ActualizarContacto(phone, datosNuevos = {}) {
         // ✅ CAMBIO PRINCIPAL: Envolvemos la llamada a la base de datos en nuestro gestor de tareas.
         // Creamos la "tarea" que es la función que queremos ejecutar en la fila.
         const task = () => postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoParaEnviar], propiedades);
-        
+
+// [DEBUG] Payload que se encola para creación/actualización de contacto
+try {
+  console.log(`[DEBUG CONTACTOS] ENCOLAR tarea para ${phone} en tabla ${process.env.PAG_CONTACTOS || 'CONTACTOS'}`);
+  // Si tu variable del row se llama distinto, usa ese nombre:
+  console.log('[DEBUG CONTACTOS] Row ENCOLADO:', JSON.stringify(contactoParaEnviar, null, 2));
+} catch (e) {
+  console.log('[DEBUG CONTACTOS] Error logueando payload ENCOLADO:', e?.message);
+}
+      
         // Añadimos la tarea a la fila y esperamos a que se complete.
         await addTask(task);
         
