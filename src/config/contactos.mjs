@@ -38,7 +38,7 @@ const COLUMNAS_VALIDAS = [
 async function postTableWithRetry(config, table, data, props, retries = 3, delay = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
-      const resp = await postTable(config, table, data, props)
+      const resp = await postTable(JSON.parse(JSON.stringify(config)), table, data, props)
       if (!resp) {
         console.warn(`⚠️ Respuesta vacía de postTable para tabla ${table}`)
         return []
