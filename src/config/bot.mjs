@@ -6,8 +6,8 @@ import { cargarYDividirBC } from '../bc/cargarBC.mjs'
 
 
 //TT APSHEET CREDENCIALES
-const appsheetId = process.env.APPSHEET_ID
-const appsheetKey = process.env.APPSHEET_KEY
+export const appsheetId = process.env.APPSHEET_ID
+export const appsheetKey = process.env.APPSHEET_KEY
 console.log('🔧 APPSHEET_ID:', appsheetId ? 'Definido' : 'No definido')
 console.log('🔧 APPSHEET_KEY:', appsheetKey ? 'Definido' : 'No definido')
 export const APPSHEETCONFIG = new AppSheetUser(appsheetId, appsheetKey)
