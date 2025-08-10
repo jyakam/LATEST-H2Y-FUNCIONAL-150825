@@ -22,53 +22,37 @@ export async function ActualizarFechasContacto(contacto, phone) {
 
   console.log(`🕓 [FECHAS] Contacto ${phone} →`, datos)
 
-   try {
+  try {
     // [DEBUG] Encolando actualización de FECHAS (qué tabla y qué row mandamos)
-    try {
-      console.log(`[DEBUG FECHAS] ENCOLAR Tabla=${HOJA_CONTACTOS}`);
-      console.log('[DEBUG FECHAS] Row ENCOLADO:', JSON.stringify(datos, null, 2));
-    } catch (e) {
-      console.log('[DEBUG FECHAS] Error log ENCOLADO:', e?.message);
-    }
+    console.log(`[DEBUG FECHAS] ENCOLAR Tabla=${HOJA_CONTACTOS}`)
+    console.log('[DEBUG FECHAS] Row ENCOLADO:', JSON.stringify(datos, null, 2))
 
-   try {
-  // [DEBUG] Encolando actualización de FECHAS (qué tabla y qué row mandamos)
-  try {
-    console.log(`[DEBUG FECHAS] ENCOLAR Tabla=${HOJA_CONTACTOS}`);
-    console.log('[DEBUG FECHAS] Row ENCOLADO:', JSON.stringify(datos, null, 2));
-  } catch (e) {
-    console.log('[DEBUG FECHAS] Error log ENCOLADO:', e?.message);
-  }
+    // PASO 2: USAMOS LA FILA PARA LA TAREA (llamada original, sin cambios)
+    await addTask(() => postTable(JSON.parse(JSON.stringify(APPSHEETCONFIG)), HOJA_CONTACTOS, [datos], PROPIEDADES))
 
-  // PASO 2: USAMOS LA FILA PARA LA TAREA (llamada original, sin cambios)
-  await addTask(() => postTable(JSON.parse(JSON.stringify(APPSHEETCONFIG)), HOJA_CONTACTOS, [datos], PROPIEDADES))
-  
-  console.log(`📆 Contacto ${phone} actualizado con fechas.`)
-  actualizarContactoEnCache({ ...contactoCompleto, ...datos })
-} catch (err) {
-  // [DEBUG] Error detallado (status + body si vienen)
-  try {
-    console.log(`❌ Error actualizando fechas para ${phone} via queue:`, err?.message);
+    console.log(`📆 Contacto ${phone} actualizado con fechas.`)
+    actualizarContactoEnCache({ ...contactoCompleto, ...datos })
+  } catch (err) {
+    // [DEBUG] Error detallado (status + body si vienen)
+    console.log(`❌ Error actualizando fechas para ${phone} via queue:`, err?.message)
     if (err?.response) {
-      console.log('[DEBUG FECHAS] ERROR STATUS:', err.response.status);
+      console.log('[DEBUG FECHAS] ERROR STATUS:', err.response.status)
+      const body = err.response.data ?? err.response.body ?? {}
       try {
-        console.log('[DEBUG FECHAS] ERROR BODY:', JSON.stringify(err.response.data, null, 2));
-      } catch (_) {
-        console.log('[DEBUG FECHAS] ERROR BODY (raw):', err.response.data);
+        console.log('[DEBUG FECHAS] ERROR BODY:', JSON.stringify(body, null, 2))
+      } catch {
+        console.log('[DEBUG FECHAS] ERROR BODY (raw):', body)
       }
     } else if (err?.body) {
-      console.log('[DEBUG FECHAS] ERROR BODY (body):', err.body);
+      console.log('[DEBUG FECHAS] ERROR BODY (body):', err.body)
     } else if (err?.stack) {
-      console.log('[DEBUG FECHAS] ERROR STACK:', err.stack);
+      console.log('[DEBUG FECHAS] ERROR STACK:', err.stack)
     }
-  } catch (e) {
-    console.log('[DEBUG FECHAS] Error log RESP ERROR:', e?.message);
-  }
 
-  // Mantenemos tu consistencia local
-  actualizarContactoEnCache({ ...contactoCompleto, ...datos })
-  console.log(`⚠️ Cache actualizada localmente para ${phone} pese a error en AppSheet`)
-}
+    // Consistencia local
+    actualizarContactoEnCache({ ...contactoCompleto, ...datos })
+    console.log(`⚠️ Cache actualizada localmente para ${phone} pese a error en AppSheet`)
+  }
 }
 
 export async function ActualizarResumenUltimaConversacion(contacto, phone, resumen) {
