@@ -23,6 +23,24 @@ function aIso(entrada) {
   return entrada
 }
 
+// Wrapper local para que la respuesta vacía de AppSheet no rompa la ejecución
+async function postTableWithRetrySafe(config, table, data, props, retries = 3, delay = 1000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      // usamos la misma firma que postTable, pero tolerante a cuerpo vacío / string
+      const resp = await postTable(JSON.parse(JSON.stringify(config)), table, data, props)
+      if (!resp) return [] // AppSheet a veces responde sin cuerpo (204)
+      if (typeof resp === 'string') {
+        try { return JSON.parse(resp) } catch { return [] }
+      }
+      return resp
+    } catch (err) {
+      if (i === retries - 1) throw err
+      await new Promise(r => setTimeout(r, delay))
+    }
+  }
+}
+
 function limpiarRowContacto(row) {
   const out = { ...row }
   // 1) nunca enviar _RowNumber
@@ -49,11 +67,14 @@ const HOJA_CONTACTOS = process.env.PAG_CONTACTOS
 
 export async function ActualizarFechasContacto(contacto, phone) {
   const hoy = ObtenerFechaActual()
+  // OJO: existeEnCache se basa SOLO en la caché, no en "contacto" pasado por parámetro
+  const existeEnCache = !!getContactoByTelefono(phone)
   let contactoCompleto = getContactoByTelefono(phone) || contacto || {}
 
   const datos = {
     ...contactoCompleto,
     TELEFONO: phone,
+    // Si ya existía, conservamos la primera; si es nuevo, la fijamos hoy
     FECHA_PRIMER_CONTACTO: contactoCompleto?.FECHA_PRIMER_CONTACTO || hoy,
     FECHA_ULTIMO_CONTACTO: hoy
   }
@@ -61,38 +82,40 @@ export async function ActualizarFechasContacto(contacto, phone) {
   console.log(`🕓 [FECHAS] Contacto ${phone} →`, datos)
 
   try {
-    // [DEBUG] Encolando actualización de FECHAS (qué tabla y qué row mandamos)
+    // Logs de diagnóstico
     console.log(`[DEBUG FECHAS] ENCOLAR Tabla=${HOJA_CONTACTOS}`)
-    console.log('[DEBUG FECHAS] Row ENCOLADO:', JSON.stringify(datos, null, 2))
+    console.log('[DEBUG FECHAS] Row ENCOLADO (crudo):', JSON.stringify(datos, null, 2))
 
-    // 👉 limpiar payload antes de enviar
+    // Limpieza y normalización (ISO fechas, sin _RowNumber, etc.)
     const row = limpiarRowContacto(datos)
+    console.log('[DEBUG FECHAS] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
 
-    // PASO 2: USAMOS LA FILA PARA LA TAREA (Edit)
+    // 👉 Acción dinámica: si NO existe en caché → Add; si SÍ existe → Edit
+    const propsDinamicas = existeEnCache
+      ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
+      : { Action: 'Add',  UserSettings: { DETECTAR: false } }
+
+    // Encolar usando el wrapper seguro
     await addTask(() =>
-      postTable(JSON.parse(JSON.stringify(APPSHEETCONFIG)), HOJA_CONTACTOS, [row], PROPIEDADES)
+      postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
     )
 
     console.log(`📆 Contacto ${phone} actualizado con fechas.`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
   } catch (err) {
-    // [DEBUG] Error detallado (status + body si vienen)
     console.log(`❌ Error actualizando fechas para ${phone} via queue:`, err?.message)
     if (err?.response) {
       console.log('[DEBUG FECHAS] ERROR STATUS:', err.response.status)
       const body = err.response.data ?? err.response.body ?? {}
-      try {
-        console.log('[DEBUG FECHAS] ERROR BODY:', JSON.stringify(body, null, 2))
-      } catch {
-        console.log('[DEBUG FECHAS] ERROR BODY (raw):', body)
-      }
+      try { console.log('[DEBUG FECHAS] ERROR BODY:', JSON.stringify(body, null, 2)) }
+      catch { console.log('[DEBUG FECHAS] ERROR BODY (raw):', body) }
     } else if (err?.body) {
       console.log('[DEBUG FECHAS] ERROR BODY (body):', err.body)
     } else if (err?.stack) {
       console.log('[DEBUG FECHAS] ERROR STACK:', err.stack)
     }
 
-    // Consistencia local
+    // Consistencia local pese al error
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
     console.log(`⚠️ Cache actualizada localmente para ${phone} pese a error en AppSheet`)
   }
@@ -101,7 +124,6 @@ export async function ActualizarFechasContacto(contacto, phone) {
 export async function ActualizarResumenUltimaConversacion(contacto, phone, resumen) {
   console.log(`🧠 Intentando guardar resumen para ${phone}:`, resumen)
 
-  // validaciones ya existentes
   if (
     !resumen ||
     resumen.length < 5 ||
@@ -114,6 +136,7 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
     return
   }
 
+  const existeEnCache = !!getContactoByTelefono(phone)
   let contactoCompleto = getContactoByTelefono(phone) || contacto || {}
 
   const datos = {
@@ -123,38 +146,35 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
   }
 
   try {
-    // [DEBUG] Encolando actualización de RESUMEN (qué tabla y qué row mandamos)
     console.log(`[DEBUG RESUMEN] ENCOLAR Tabla=${HOJA_CONTACTOS}`)
-    console.log('[DEBUG RESUMEN] Row ENCOLADO:', JSON.stringify(datos, null, 2))
+    console.log('[DEBUG RESUMEN] Row ENCOLADO (crudo):', JSON.stringify(datos, null, 2))
 
-    // 👉 limpiar payload antes de enviar
     const row = limpiarRowContacto(datos)
+    console.log('[DEBUG RESUMEN] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
 
-    // PASO 2: USAMOS LA FILA TAMBIÉN AQUÍ (Edit)
+    const propsDinamicas = existeEnCache
+      ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
+      : { Action: 'Add',  UserSettings: { DETECTAR: false } }
+
     await addTask(() =>
-      postTable(JSON.parse(JSON.stringify(APPSHEETCONFIG)), HOJA_CONTACTOS, [row], PROPIEDADES)
+      postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
     )
 
     console.log(`📝 Resumen actualizado para ${phone}`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
   } catch (err) {
-    // [DEBUG] Error detallado (status + body si vienen)
     console.log(`❌ Error guardando resumen para ${phone} via queue:`, err?.message)
     if (err?.response) {
       console.log('[DEBUG RESUMEN] ERROR STATUS:', err.response.status)
       const body = err.response.data ?? err.response.body ?? {}
-      try {
-        console.log('[DEBUG RESUMEN] ERROR BODY:', JSON.stringify(body, null, 2))
-      } catch {
-        console.log('[DEBUG RESUMEN] ERROR BODY (raw):', body)
-      }
+      try { console.log('[DEBUG RESUMEN] ERROR BODY:', JSON.stringify(body, null, 2)) }
+      catch { console.log('[DEBUG RESUMEN] ERROR BODY (raw):', body) }
     } else if (err?.body) {
       console.log('[DEBUG RESUMEN] ERROR BODY (body):', err.body)
     } else if (err?.stack) {
       console.log('[DEBUG RESUMEN] ERROR STACK:', err.stack)
     }
 
-    // Consistencia local
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
     console.log(`⚠️ Cache actualizada localmente para ${phone} pese a error en AppSheet`)
   }
