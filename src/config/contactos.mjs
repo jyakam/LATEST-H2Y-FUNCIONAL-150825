@@ -29,8 +29,10 @@ const COLUMNAS_VALIDAS = [
   'CIUDAD',
   'PAIS',
   'ESTADO_DEPARTAMENTO',
+  'CODIGO_POSTAL',               // ⬅️ nueva
   'ETIQUETA',
   'TIPO_DE_CLIENTE',
+  'FECHA_DE_CUMPLEANOS',         // ⬅️ nueva
   'RESUMEN_ULTIMA_CONVERSACION',
   'NUMERO_DE_TELEFONO_SECUNDARIO'
 ]
@@ -48,6 +50,8 @@ function aIso(entrada) {
   return entrada
 }
 
+const CAMPOS_FECHA = ['FECHA_PRIMER_CONTACTO', 'FECHA_ULTIMO_CONTACTO', 'FECHA_DE_CUMPLEANOS']
+
 function sanitizarContacto(obj) {
   // 1) clonar
   const base = { ...obj }
@@ -61,24 +65,40 @@ function sanitizarContacto(obj) {
     delete base['TIPO DE CLIENTE']
   }
 
-  // 4) quitar columnas que no existen en CONTACTOS (ejemplo: FECHA_NACIMIENTO)
+  // 4) mapear FECHA_NACIMIENTO -> FECHA_DE_CUMPLEANOS si viene con ese nombre
+  if (base.FECHA_NACIMIENTO && !base.FECHA_DE_CUMPLEANOS) {
+    base.FECHA_DE_CUMPLEANOS = base.FECHA_NACIMIENTO
+  }
   delete base.FECHA_NACIMIENTO
 
   // 5) normalizar fechas a ISO si existen
   if (base.FECHA_PRIMER_CONTACTO) base.FECHA_PRIMER_CONTACTO = aIso(base.FECHA_PRIMER_CONTACTO)
   if (base.FECHA_ULTIMO_CONTACTO) base.FECHA_ULTIMO_CONTACTO = aIso(base.FECHA_ULTIMO_CONTACTO)
-  if (base.FECHA_DE_CUMPLEANOS) base.FECHA_DE_CUMPLEANOS = aIso(base.FECHA_DE_CUMPLEANOS)
+  if (base.FECHA_DE_CUMPLEANOS)  base.FECHA_DE_CUMPLEANOS  = aIso(base.FECHA_DE_CUMPLEANOS)
 
-  // 6) quedarnos SOLO con columnas válidas
+  // 6) asegurar que CODIGO_POSTAL sea string (para no perder ceros a la izquierda)
+  if (base.CODIGO_POSTAL !== undefined && base.CODIGO_POSTAL !== null) {
+    base.CODIGO_POSTAL = String(base.CODIGO_POSTAL).trim()
+  }
+
+  // 7) quedarnos SOLO con columnas válidas
   const limpio = {}
   for (const k of COLUMNAS_VALIDAS) {
-    if (base[k] !== undefined && base[k] !== null) {
-      // Evitar mandar '' en tipos no-texto: si viene vacío, lo omitimos
-      if (typeof base[k] === 'string') {
-        limpio[k] = base[k]
-      } else if (base[k] !== '') {
-        limpio[k] = base[k]
-      }
+    const v = base[k]
+
+    // omitimos undefined/null siempre
+    if (v === undefined || v === null) continue
+
+    // si es campo de fecha y está vacío, NO lo mandamos
+    if (CAMPOS_FECHA.includes(k) && (v === '' || (typeof v === 'string' && v.trim() === ''))) continue
+
+    // para el resto:
+    // - si es string, lo mandamos tal cual (incluye '', válido para campos texto como NOMBRE, DIRECCION, etc.)
+    // - si no es string, lo mandamos salvo que sea '', que descartamos por arriba
+    if (typeof v === 'string') {
+      limpio[k] = v
+    } else {
+      if (v !== '') limpio[k] = v
     }
   }
 
