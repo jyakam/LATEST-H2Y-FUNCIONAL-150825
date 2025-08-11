@@ -28,7 +28,7 @@ async function postTableWithRetrySafe(config, table, data, props, retries = 3, d
   for (let i = 0; i < retries; i++) {
     try {
       // usamos la misma firma que postTable, pero tolerante a cuerpo vacío / string
-      const resp = await postTable(JSON.parse(JSON.stringify(config)), table, data, props)
+      const resp = await postTable(config, table, data, props)
       if (!resp) return [] // AppSheet a veces responde sin cuerpo (204)
       if (typeof resp === 'string') {
         try { return JSON.parse(resp) } catch { return [] }
@@ -67,7 +67,8 @@ const HOJA_CONTACTOS = process.env.PAG_CONTACTOS
 
 export async function ActualizarFechasContacto(contacto, phone) {
   const hoy = ObtenerFechaActual()
-  // OJO: existeEnCache se basa SOLO en la caché, no en "contacto" pasado por parámetro
+
+  // ¿Existe ya en la caché?
   const existeEnCache = !!getContactoByTelefono(phone)
   let contactoCompleto = getContactoByTelefono(phone) || contacto || {}
 
@@ -82,23 +83,26 @@ export async function ActualizarFechasContacto(contacto, phone) {
   console.log(`🕓 [FECHAS] Contacto ${phone} →`, datos)
 
   try {
-    // Logs de diagnóstico
     console.log(`[DEBUG FECHAS] ENCOLAR Tabla=${HOJA_CONTACTOS}`)
     console.log('[DEBUG FECHAS] Row ENCOLADO (crudo):', JSON.stringify(datos, null, 2))
 
-    // Limpieza y normalización (ISO fechas, sin _RowNumber, etc.)
+    // Sanitizar/normalizar antes de enviar (fechas a ISO, sin _RowNumber, etc.)
     const row = limpiarRowContacto(datos)
     console.log('[DEBUG FECHAS] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
 
-    // 👉 Acción dinámica: si NO existe en caché → Add; si SÍ existe → Edit
+    // Acción dinámica: Add si NO existe, Edit si SÍ existe
     const propsDinamicas = existeEnCache
       ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
       : { Action: 'Add',  UserSettings: { DETECTAR: false } }
 
-    // Encolar usando el wrapper seguro
-    await addTask(() =>
-      postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
-    )
+    console.log(`[DEBUG FECHAS] Acción AppSheet = ${propsDinamicas.Action}`)
+
+    // 🔑 Instancia FRESCA de AppSheet por operación (evita estado raro)
+    await addTask(() => {
+      const localCfg = new AppSheetUser(appsheetId, appsheetKey)
+      console.log('[DEBUG FECHAS] Usando instancia AppSheet local para la operación')
+      return postTableWithRetrySafe(localCfg, HOJA_CONTACTOS, [row], propsDinamicas)
+    })
 
     console.log(`📆 Contacto ${phone} actualizado con fechas.`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
@@ -115,7 +119,7 @@ export async function ActualizarFechasContacto(contacto, phone) {
       console.log('[DEBUG FECHAS] ERROR STACK:', err.stack)
     }
 
-    // Consistencia local pese al error
+    // Consistencia local aunque falle AppSheet
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
     console.log(`⚠️ Cache actualizada localmente para ${phone} pese a error en AppSheet`)
   }
@@ -124,6 +128,7 @@ export async function ActualizarFechasContacto(contacto, phone) {
 export async function ActualizarResumenUltimaConversacion(contacto, phone, resumen) {
   console.log(`🧠 Intentando guardar resumen para ${phone}:`, resumen)
 
+  // Validaciones para guardar solo resúmenes útiles
   if (
     !resumen ||
     resumen.length < 5 ||
@@ -156,9 +161,14 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
       ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
       : { Action: 'Add',  UserSettings: { DETECTAR: false } }
 
-    await addTask(() =>
-      postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
-    )
+    console.log(`[DEBUG RESUMEN] Acción AppSheet = ${propsDinamicas.Action}`)
+
+    // Instancia FRESCA por operación
+    await addTask(() => {
+      const localCfg = new AppSheetUser(appsheetId, appsheetKey)
+      console.log('[DEBUG RESUMEN] Usando instancia AppSheet local para la operación')
+      return postTableWithRetrySafe(localCfg, HOJA_CONTACTOS, [row], propsDinamicas)
+    })
 
     console.log(`📝 Resumen actualizado para ${phone}`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
