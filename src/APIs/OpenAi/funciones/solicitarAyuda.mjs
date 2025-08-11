@@ -2,10 +2,16 @@
 import { Notificar, ENUM_NOTI } from '../../../config/notificaciones.mjs'
 
 //TT SOLICITAR AYUDA
-export async function SolicitarAyuda(userID, consulta) {
-  const msj = `🤖 El usuario con el número de teléfono ${userID} tiene la siguiente consulta:\n\n_${consulta}_`
-  Notificar(ENUM_NOTI.AYUDA, { msj })
-  return 'Notificacion enviada a asesor'
+export async function SolicitarAyuda(datosUsuario, consulta) {
+  // Se extrae el nombre y el teléfono del objeto. Se asigna 'Desconocido' si el nombre no es válido.
+  const nombre = (datosUsuario && datosUsuario.nombre && datosUsuario.nombre !== 'Sin Nombre') ? datosUsuario.nombre : 'Desconocido';
+  const telefono = (datosUsuario && datosUsuario.telefono) ? datosUsuario.telefono : 'No disponible';
+
+  // Se construye el nuevo mensaje personalizado. He añadido asteriscos para resaltar los datos.
+  const msj = `🤖 El usuario *${nombre}* con el número de teléfono *${telefono}* tiene la siguiente consulta:\n\n_${consulta}_`;
+
+  Notificar(ENUM_NOTI.AYUDA, { msj });
+  return 'Notificacion enviada a asesor';
 }
 
 //FF FUNCION IA
