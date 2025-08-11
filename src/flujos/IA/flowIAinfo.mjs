@@ -28,7 +28,7 @@ import { enviarImagenProductoOpenAI } from '../../APIs/OpenAi/enviarImagenProduc
 import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA } from '../../funciones/helpers/contactosIAHelper.mjs'
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
-import { SolicitarAyuda } from '../../funciones/solicitarAyuda.mjs';
+import { SolicitarAyuda } from '../../APIs/OpenAi/funciones/solicitarAyuda.mjs';
 
 // --- VERSIÓN FINAL Y DEFINITIVA CON ANÁLISIS DE HISTORIAL ---
 /**
