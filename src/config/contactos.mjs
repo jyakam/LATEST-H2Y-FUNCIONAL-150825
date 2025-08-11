@@ -187,7 +187,7 @@ export async function ActualizarContacto(phone, datosNuevos = {}) {
                 TELEFONO: phone,
                 FECHA_PRIMER_CONTACTO: new Date().toLocaleDateString('es-CO'),
                 ETIQUETA: 'Nuevo',
-                RESP_BOT: 'Sí'
+                RESP_BOT: 'true'
             };
         }
 
@@ -195,11 +195,7 @@ export async function ActualizarContacto(phone, datosNuevos = {}) {
         contactoParaEnviar.FECHA_ULTIMO_CONTACTO = new Date().toLocaleDateString('es-CO');
         contactoParaEnviar.TELEFONO = phone;
 
-      // Siempre actualiza la fecha del último contacto y asegura el teléfono.
-contactoParaEnviar.FECHA_ULTIMO_CONTACTO = new Date().toLocaleDateString('es-CO')
-contactoParaEnviar.TELEFONO = phone
-
-// 👉 Normalizamos y filtramos el objeto ANTES de enviarlo
+   // 👉 Normalizamos y filtramos el objeto ANTES de enviarlo
 contactoParaEnviar = sanitizarContacto(contactoParaEnviar)
 
 // 👉 Elegimos la acción correcta para AppSheet
