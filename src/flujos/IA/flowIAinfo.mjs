@@ -28,6 +28,7 @@ import { enviarImagenProductoOpenAI } from '../../APIs/OpenAi/enviarImagenProduc
 import { verificarYActualizarContactoSiEsNecesario, detectarIntencionContactoIA } from '../../funciones/helpers/contactosIAHelper.mjs'
 import { actualizarHistorialConversacion } from '../../funciones/helpers/historialConversacion.mjs';
 import { cicloMarcadoresIA } from '../../funciones/helpers/marcadoresIAHelper.mjs'
+import { SolicitarAyuda } from '../../funciones/solicitarAyuda.mjs';
 
 // --- VERSIÓN FINAL Y DEFINITIVA CON ANÁLISIS DE HISTORIAL ---
 /**
@@ -649,9 +650,30 @@ async function manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, prov
         return gotoFlow(flowDetallesProducto);
     }
 
-    if (respuestaTextoIA_lower.includes('🧩solicitarayuda')) {
-        console.log('✅ [ROUTER] Acción detectada: 🧩solicitarayuda.');
-        return gotoFlow(flowProductos); // TODO: Cambiar por flow de ayuda real
+   if (respuestaTextoIA_lower.includes('🧩solicitarayuda')) {
+        console.log('✅ [ROUTER] Acción detectada: 🧩solicitarayuda. Notificando al asesor...');
+    
+        // 1. Obtenemos la información del contacto desde la caché.
+        const phone = ctx.from.split('@')[0];
+        const contacto = Cache.getContactoByTelefono(phone) || {}; // Usamos || {} para evitar errores si no se encuentra
+    
+        // 2. Preparamos el objeto con los datos del usuario para la notificación.
+        const datosUsuario = {
+            nombre: contacto.NOMBRE, // Se pasa el nombre tal cual; nuestra función ya maneja si es 'Sin Nombre'
+            telefono: phone
+        };
+    
+        // 3. Limpiamos el texto de la consulta para no enviar el marcador al asesor.
+        const consultaLimpiada = respuestaTextoIA.replace(/🧩solicitarayuda🧩/gi, '').trim();
+    
+        // 4. Llamamos a nuestra función mejorada para enviar la notificación.
+        await SolicitarAyuda(datosUsuario, consultaLimpiada);
+    
+        // 5. Enviamos un mensaje de confirmación al cliente para informarle que un asesor le atenderá.
+        await flowDynamic('He notificado a un asesor para que se ponga en contacto contigo en breve. ¡Gracias por tu paciencia!');
+    
+        // Detenemos el flujo automático para esperar la intervención humana.
+        return;
     }
 
     // 4. LÓGICA DE CARRITO (Lógica Nueva Preservada) - INTACTO
