@@ -30,10 +30,60 @@ const COLUMNAS_VALIDAS = [
   'PAIS',
   'ESTADO_DEPARTAMENTO',
   'ETIQUETA',
-  'TIPO DE CLIENTE',
+  'TIPO_DE_CLIENTE',
   'RESUMEN_ULTIMA_CONVERSACION',
   'NUMERO_DE_TELEFONO_SECUNDARIO'
 ]
+
+function aIso(entrada) {
+  if (!entrada || typeof entrada !== 'string') return entrada
+  const s = entrada.trim()
+  const m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/)
+  if (m) {
+    const [_, dd, mm, yyyy] = m
+    const d = String(dd).padStart(2, '0')
+    const M = String(mm).padStart(2, '0')
+    return `${yyyy}-${M}-${d}`
+  }
+  return entrada
+}
+
+function sanitizarContacto(obj) {
+  // 1) clonar
+  const base = { ...obj }
+
+  // 2) nunca enviar _RowNumber
+  delete base._RowNumber
+
+  // 3) mapear 'TIPO DE CLIENTE' -> 'TIPO_DE_CLIENTE'
+  if (base['TIPO DE CLIENTE'] && !base.TIPO_DE_CLIENTE) {
+    base.TIPO_DE_CLIENTE = base['TIPO DE CLIENTE']
+    delete base['TIPO DE CLIENTE']
+  }
+
+  // 4) quitar columnas que no existen en CONTACTOS (ejemplo: FECHA_NACIMIENTO)
+  delete base.FECHA_NACIMIENTO
+
+  // 5) normalizar fechas a ISO si existen
+  if (base.FECHA_PRIMER_CONTACTO) base.FECHA_PRIMER_CONTACTO = aIso(base.FECHA_PRIMER_CONTACTO)
+  if (base.FECHA_ULTIMO_CONTACTO) base.FECHA_ULTIMO_CONTACTO = aIso(base.FECHA_ULTIMO_CONTACTO)
+  if (base.FECHA_DE_CUMPLEANOS) base.FECHA_DE_CUMPLEANOS = aIso(base.FECHA_DE_CUMPLEANOS)
+
+  // 6) quedarnos SOLO con columnas válidas
+  const limpio = {}
+  for (const k of COLUMNAS_VALIDAS) {
+    if (base[k] !== undefined && base[k] !== null) {
+      // Evitar mandar '' en tipos no-texto: si viene vacío, lo omitimos
+      if (typeof base[k] === 'string') {
+        limpio[k] = base[k]
+      } else if (base[k] !== '') {
+        limpio[k] = base[k]
+      }
+    }
+  }
+
+  return limpio
+}
 
 async function postTableWithRetry(config, table, data, props, retries = 3, delay = 1000) {
   for (let i = 0; i < retries; i++) {
@@ -145,9 +195,21 @@ export async function ActualizarContacto(phone, datosNuevos = {}) {
         contactoParaEnviar.FECHA_ULTIMO_CONTACTO = new Date().toLocaleDateString('es-CO');
         contactoParaEnviar.TELEFONO = phone;
 
+      // Siempre actualiza la fecha del último contacto y asegura el teléfono.
+contactoParaEnviar.FECHA_ULTIMO_CONTACTO = new Date().toLocaleDateString('es-CO')
+contactoParaEnviar.TELEFONO = phone
+
+// 👉 Normalizamos y filtramos el objeto ANTES de enviarlo
+contactoParaEnviar = sanitizarContacto(contactoParaEnviar)
+
+// 👉 Elegimos la acción correcta para AppSheet
+const props = contactoPrevio
+  ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
+  : { Action: 'Add',  UserSettings: { DETECTAR: false } }
+
         // ✅ CAMBIO PRINCIPAL: Envolvemos la llamada a la base de datos en nuestro gestor de tareas.
         // Creamos la "tarea" que es la función que queremos ejecutar en la fila.
-        const task = () => postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoParaEnviar], propiedades);
+        const task = () => postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoParaEnviar], props)
 
 // [DEBUG] Payload que se encola para creación/actualización de contacto
 try {
