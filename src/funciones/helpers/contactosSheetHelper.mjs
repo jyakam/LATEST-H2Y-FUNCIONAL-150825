@@ -53,6 +53,13 @@ function limpiarRowContacto(row) {
   // 3) no mandar columnas inexistentes aquí (ej: FECHA_NACIMIENTO)
   delete out.FECHA_NACIMIENTO
 
+  // ====== INICIO DE LA CORRECCIÓN ======
+  // Aseguramos que RESP_BOT se envíe como texto 'TRUE' o 'FALSE'
+  if (out.RESP_BOT !== undefined) {
+    out.RESP_BOT = String(out.RESP_BOT).toUpperCase();
+  }
+  // ====== FIN DE LA CORRECCIÓN ======
+
   // 4) fechas a ISO cuando existan
   if (out.FECHA_PRIMER_CONTACTO) out.FECHA_PRIMER_CONTACTO = aIso(out.FECHA_PRIMER_CONTACTO)
   if (out.FECHA_ULTIMO_CONTACTO) out.FECHA_ULTIMO_CONTACTO = aIso(out.FECHA_ULTIMO_CONTACTO)
