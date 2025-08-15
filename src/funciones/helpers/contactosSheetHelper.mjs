@@ -41,10 +41,15 @@ async function postTableWithRetrySafe(config, table, data, props, retries = 3, d
   }
 }
 
-function limpiarRowContacto(row) {
+function limpiarRowContacto(row, action = 'Add') { // Le añadimos el parámetro "action"
   const out = { ...row }
-  // 1) nunca enviar _RowNumber
-  delete out._RowNumber
+
+  // 1) Solo borramos el _RowNumber si la acción es 'Add' (añadir nuevo)
+  // Si es 'Edit', lo necesitamos para que AppSheet sepa a quién editar.
+  if (action === 'Add') {
+    delete out._RowNumber
+  }
+
   // 2) mapear 'TIPO DE CLIENTE' -> 'TIPO_DE_CLIENTE' si llega con espacio
   if (out['TIPO DE CLIENTE'] && !out.TIPO_DE_CLIENTE) {
     out.TIPO_DE_CLIENTE = out['TIPO DE CLIENTE']
@@ -53,12 +58,10 @@ function limpiarRowContacto(row) {
   // 3) no mandar columnas inexistentes aquí (ej: FECHA_NACIMIENTO)
   delete out.FECHA_NACIMIENTO
 
-  // ====== INICIO DE LA CORRECCIÓN ======
   // Aseguramos que RESP_BOT se envíe como texto 'TRUE' o 'FALSE'
   if (out.RESP_BOT !== undefined) {
     out.RESP_BOT = String(out.RESP_BOT).toUpperCase();
   }
-  // ====== FIN DE LA CORRECCIÓN ======
 
   // 4) fechas a ISO cuando existan
   if (out.FECHA_PRIMER_CONTACTO) out.FECHA_PRIMER_CONTACTO = aIso(out.FECHA_PRIMER_CONTACTO)
@@ -94,7 +97,7 @@ export async function ActualizarFechasContacto(contacto, phone) {
     console.log('[DEBUG FECHAS] Row ENCOLADO (crudo):', JSON.stringify(datos, null, 2))
 
     // Sanitizar/normalizar antes de enviar (fechas a ISO, sin _RowNumber, etc.)
-    const row = limpiarRowContacto(datos)
+    const row = limpiarRowContacto(datos, propsDinamicas.Action)
     console.log('[DEBUG FECHAS] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
 
     // Acción dinámica: Add si NO existe, Edit si SÍ existe
@@ -161,7 +164,7 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
     console.log(`[DEBUG RESUMEN] ENCOLAR Tabla=${HOJA_CONTACTOS}`)
     console.log('[DEBUG RESUMEN] Row ENCOLADO (crudo):', JSON.stringify(datos, null, 2))
 
-    const row = limpiarRowContacto(datos)
+    const row = limpiarRowContacto(datos, propsDinamicas.Action)
     console.log('[DEBUG RESUMEN] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
 
     const propsDinamicas = existeEnCache
