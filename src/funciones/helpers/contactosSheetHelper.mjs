@@ -106,13 +106,11 @@ export async function ActualizarFechasContacto(contacto, phone) {
 
     // 🔑 Instancia FRESCA de AppSheet por operación (evita estado raro)
     await addTask(() => {
-  // Línea de diagnóstico que vamos a añadir:
-  console.log('[DEBUG CREDENCIALES] ID:', appsheetId, 'KEY:', appsheetKey);
-      const localCfg = new AppSheetUser(appsheetId, appsheetKey)
-      console.log('[DEBUG FECHAS] Usando instancia AppSheet local para la operación')
-      return postTableWithRetrySafe(localCfg, HOJA_CONTACTOS, [row], propsDinamicas)
-    })
-
+  // Ya no creamos una configuración local. Usamos la que sabemos que funciona.
+  console.log('[DEBUG FECHAS] Usando la configuración global APPSHEETCONFIG para la operación')
+  return postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
+})
+    
     console.log(`📆 Contacto ${phone} actualizado con fechas.`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
   } catch (err) {
@@ -174,13 +172,11 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
 
     // Instancia FRESCA por operación
    await addTask(() => {
-  // Línea de diagnóstico que vamos a añadir:
-  console.log('[DEBUG CREDENCIALES] ID:', appsheetId, 'KEY:', appsheetKey);
-      const localCfg = new AppSheetUser(appsheetId, appsheetKey)
-      console.log('[DEBUG RESUMEN] Usando instancia AppSheet local para la operación')
-      return postTableWithRetrySafe(localCfg, HOJA_CONTACTOS, [row], propsDinamicas)
-    })
-
+  // Ya no creamos una configuración local. Usamos la que sabemos que funciona.
+  console.log('[DEBUG FECHAS] Usando la configuración global APPSHEETCONFIG para la operación')
+  return postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
+})
+    
     console.log(`📝 Resumen actualizado para ${phone}`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
   } catch (err) {
