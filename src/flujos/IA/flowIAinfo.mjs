@@ -354,7 +354,7 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
     await state.update({ productoDetectadoEnImagen: false, productoReconocidoPorIA: '' });
     const tipoMensajeActual = state.get('tipoMensaje');
 
-    // --- CAMINO 1: EL MENSAJE ES IMAGEN O AUDIO ---
+   // --- CAMINO 1: EL MENSAJE ES IMAGEN O AUDIO ---
     if (tipoMensajeActual === ENUM_TIPO_ARCHIVO.IMAGEN || tipoMensajeActual === ENUM_TIPO_ARCHIVO.NOTA_VOZ) {
         
         console.log(`🔀 [FLUJO] Detectado tipo de mensaje: ${tipoMensajeActual}. Se procesará como archivo multimedia.`);
@@ -377,11 +377,26 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
             }
         }
         
-       // El texto que acompaña (caption) se pasa, si no hay, se pasa vacío.
-const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
-const herramientas = { ctx, flowDynamic, endFlow, gotoFlow, provider, state }; // <-- AÑADE ESTA LÍNEA
-const res = await EnviarIA(textoAdjunto, '', herramientas, {});                  // <-- USA "herramientas" AQUÍ
-await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
+        // --- INICIO DE LA CORRECCIÓN ---
+        console.log('🛠️ [FLUJO AUDIO/IMG] Armando prompt del sistema antes de llamar a la IA...');
+        
+        const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
+        const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
+        const bloques = ARCHIVO.PROMPT_BLOQUES;
+        const contacto = Cache.getContactoByTelefono(phone);
+        
+        const promptSistema = armarPromptOptimizado(state, bloques, {});
+
+        const estado = {
+            esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+            contacto: contacto || {}
+        };
+        
+        console.log('✅ [FLUJO AUDIO/IMG] Llamando a EnviarIA con el prompt del sistema completo.');
+        const res = await EnviarIA(textoAdjunto, promptSistema, tools, estado);
+        
+        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
+        // --- FIN DE LA CORRECCIÓN ---
 
     // --- CAMINO 2: EL MENSAJE ES TEXTO ---
     } else {
@@ -500,11 +515,26 @@ console.log('🐞 [DEBUG FECHAS] Tipo de la variable "phone":', typeof phone);
             }
         }
         
-       // El texto que acompaña (caption) se pasa, si no hay, se pasa vacío.
-const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
-const herramientas = { ctx, flowDynamic, endFlow, gotoFlow, provider, state }; // <-- AÑADE ESTA LÍNEA
-const res = await EnviarIA(textoAdjunto, '', herramientas, {});                  // <-- USA "herramientas" AQUÍ
-await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
+        // --- INICIO DE LA CORRECCIÓN ---
+        console.log('🛠️ [FLUJO AUDIO/IMG CAPTURE] Armando prompt del sistema antes de llamar a la IA...');
+        
+        const tools = { ctx, flowDynamic, endFlow, gotoFlow, provider, state };
+        const textoAdjunto = ctx.message?.imageMessage?.caption || ctx.message?.videoMessage?.caption || '';
+        const bloques = ARCHIVO.PROMPT_BLOQUES;
+        const contacto = Cache.getContactoByTelefono(phone);
+        
+        const promptSistema = armarPromptOptimizado(state, bloques, {});
+
+        const estado = {
+            esClienteNuevo: !contacto || contacto.NOMBRE === 'Sin Nombre',
+            contacto: contacto || {}
+        };
+        
+        console.log('✅ [FLUJO AUDIO/IMG CAPTURE] Llamando a EnviarIA con el prompt del sistema completo.');
+        const res = await EnviarIA(textoAdjunto, promptSistema, tools, estado);
+        
+        await manejarRespuestaIA(res, ctx, flowDynamic, endFlow, gotoFlow, provider, state, textoAdjunto);
+        // --- FIN DE LA CORRECCIÓN ---
 
     // --- CAMINO 2: EL MENSAJE ES TEXTO ---
     } else {
