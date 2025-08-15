@@ -106,6 +106,8 @@ export async function ActualizarFechasContacto(contacto, phone) {
 
     // 🔑 Instancia FRESCA de AppSheet por operación (evita estado raro)
     await addTask(() => {
+  // Línea de diagnóstico que vamos a añadir:
+  console.log('[DEBUG CREDENCIALES] ID:', appsheetId, 'KEY:', appsheetKey);
       const localCfg = new AppSheetUser(appsheetId, appsheetKey)
       console.log('[DEBUG FECHAS] Usando instancia AppSheet local para la operación')
       return postTableWithRetrySafe(localCfg, HOJA_CONTACTOS, [row], propsDinamicas)
@@ -171,7 +173,9 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
     console.log(`[DEBUG RESUMEN] Acción AppSheet = ${propsDinamicas.Action}`)
 
     // Instancia FRESCA por operación
-    await addTask(() => {
+   await addTask(() => {
+  // Línea de diagnóstico que vamos a añadir:
+  console.log('[DEBUG CREDENCIALES] ID:', appsheetId, 'KEY:', appsheetKey);
       const localCfg = new AppSheetUser(appsheetId, appsheetKey)
       console.log('[DEBUG RESUMEN] Usando instancia AppSheet local para la operación')
       return postTableWithRetrySafe(localCfg, HOJA_CONTACTOS, [row], propsDinamicas)
