@@ -84,10 +84,18 @@ function sanitizarContacto(obj) {
   // 7) quedarnos SOLO con columnas válidas
   const limpio = {}
   for (const k of COLUMNAS_VALIDAS) {
-    const v = base[k]
+    let v = base[k] // Usamos let para poder modificarlo
 
     // omitimos undefined/null siempre
     if (v === undefined || v === null) continue
+
+    // ====== INICIO DE LA CORRECCIÓN ======
+    // Si el campo es RESP_BOT, lo convertimos a texto 'TRUE' o 'FALSE'.
+    // Esto soluciona el error de AppSheet.
+    if (k === 'RESP_BOT') {
+      v = String(v).toUpperCase(); // Convierte true a 'TRUE' y false a 'FALSE'
+    }
+    // ====== FIN DE LA CORRECCIÓN ======
 
     // si es campo de fecha y está vacío, NO lo mandamos
     if (CAMPOS_FECHA.includes(k) && (v === '' || (typeof v === 'string' && v.trim() === ''))) continue
@@ -207,7 +215,7 @@ export async function ActualizarContacto(phone, datosNuevos = {}) {
                 TELEFONO: phone,
                 FECHA_PRIMER_CONTACTO: new Date().toLocaleDateString('es-CO'),
                 ETIQUETA: 'Nuevo',
-                RESP_BOT: 'true'
+                RESP_BOT: 'TRUE'
             };
         }
 
