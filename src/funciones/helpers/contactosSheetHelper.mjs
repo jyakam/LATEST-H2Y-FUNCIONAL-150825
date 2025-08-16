@@ -200,3 +200,37 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
     console.log(`⚠️ Cache actualizada localmente para ${phone} pese a error en AppSheet`)
   }
 }
+
+// Esta es la nueva función centralizada para guardar cualquier tipo de actualización de contacto.
+export async function GuardarContacto(datosContacto) {
+  const phone = datosContacto.TELEFONO;
+  if (!phone) {
+    console.error('❌ [GuardarContacto] Se intentó guardar un contacto sin TELEFONO.');
+    return;
+  }
+
+  // Determinamos si es 'Add' o 'Edit' basado en si tiene _RowNumber
+  const action = datosContacto._RowNumber ? 'Edit' : 'Add';
+
+  try {
+    const props = { UserSettings: { DETECTAR: false } }; // Propiedades simplificadas
+
+    // Limpiamos la fila usando nuestra función inteligente
+    const row = limpiarRowContacto(datosContacto, action);
+
+    console.log(`[GUARDAR CONTACTO] Encolando Tarea. Acción=${action} para ${phone}`);
+
+    await addTask(() => {
+      console.log(`[GUARDAR CONTACTO] Ejecutando tarea desde la fila...`);
+      return postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], props);
+    });
+
+    console.log(`✅ [GuardarContacto] Tarea para ${phone} completada.`);
+    // Siempre actualizamos la caché local para mantener la consistencia
+    actualizarContactoEnCache(row);
+  } catch (err) {
+    console.error(`❌ [GuardarContacto] Error fatal en la tarea para ${phone}:`, err.message);
+    // Opcional: actualizar la caché incluso si falla, para no perder los datos localmente
+    actualizarContactoEnCache(datosContacto);
+  }
+}
