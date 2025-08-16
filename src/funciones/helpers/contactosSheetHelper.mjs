@@ -96,24 +96,26 @@ export async function ActualizarFechasContacto(contacto, phone) {
     console.log(`[DEBUG FECHAS] ENCOLAR Tabla=${HOJA_CONTACTOS}`)
     console.log('[DEBUG FECHAS] Row ENCOLADO (crudo):', JSON.stringify(datos, null, 2))
 
-    // Sanitizar/normalizar antes de enviar (fechas a ISO, sin _RowNumber, etc.)
-    const row = limpiarRowContacto(datos, propsDinamicas.Action)
-    console.log('[DEBUG FECHAS] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
-
-    // Acción dinámica: Add si NO existe, Edit si SÍ existe
+    // ====== INICIO DE LA CORRECCIÓN ======
+    // Movemos este bloque aquí arriba para que la variable exista antes de usarla.
     const propsDinamicas = existeEnCache
       ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
       : { Action: 'Add',  UserSettings: { DETECTAR: false } }
+    // ====== FIN DE LA CORRECCIÓN ======
+
+    // Sanitizar/normalizar antes de enviar (fechas a ISO, sin _RowNumber, etc.)
+    const row = limpiarRowContacto(datos, propsDinamicas.Action)
+    console.log('[DEBUG FECHAS] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
 
     console.log(`[DEBUG FECHAS] Acción AppSheet = ${propsDinamicas.Action}`)
 
     // 🔑 Instancia FRESCA de AppSheet por operación (evita estado raro)
     await addTask(() => {
-  // Ya no creamos una configuración local. Usamos la que sabemos que funciona.
-  console.log('[DEBUG FECHAS] Usando la configuración global APPSHEETCONFIG para la operación')
-  return postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
-})
-    
+      // Ya no creamos una configuración local. Usamos la que sabemos que funciona.
+      console.log('[DEBUG FECHAS] Usando la configuración global APPSHEETCONFIG para la operación')
+      return postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
+    })
+
     console.log(`📆 Contacto ${phone} actualizado con fechas.`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
   } catch (err) {
@@ -164,22 +166,25 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
     console.log(`[DEBUG RESUMEN] ENCOLAR Tabla=${HOJA_CONTACTOS}`)
     console.log('[DEBUG RESUMEN] Row ENCOLADO (crudo):', JSON.stringify(datos, null, 2))
 
-    const row = limpiarRowContacto(datos, propsDinamicas.Action)
-    console.log('[DEBUG RESUMEN] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
-
+    // ====== INICIO DE LA CORRECCIÓN ======
+    // Movemos este bloque aquí arriba para que la variable exista antes de usarla.
     const propsDinamicas = existeEnCache
       ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
       : { Action: 'Add',  UserSettings: { DETECTAR: false } }
+    // ====== FIN DE LA CORRECCIÓN ======
+
+    const row = limpiarRowContacto(datos, propsDinamicas.Action)
+    console.log('[DEBUG RESUMEN] Row FINAL (sanitizado):', JSON.stringify(row, null, 2))
 
     console.log(`[DEBUG RESUMEN] Acción AppSheet = ${propsDinamicas.Action}`)
 
     // Instancia FRESCA por operación
-   await addTask(() => {
-  // Ya no creamos una configuración local. Usamos la que sabemos que funciona.
-  console.log('[DEBUG FECHAS] Usando la configuración global APPSHEETCONFIG para la operación')
-  return postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
-})
-    
+    await addTask(() => {
+      // Ya no creamos una configuración local. Usamos la que sabemos que funciona.
+      console.log('[DEBUG FECHAS] Usando la configuración global APPSHEETCONFIG para la operación')
+      return postTableWithRetrySafe(APPSHEETCONFIG, HOJA_CONTACTOS, [row], propsDinamicas)
+    })
+
     console.log(`📝 Resumen actualizado para ${phone}`)
     actualizarContactoEnCache({ ...contactoCompleto, ...datos })
   } catch (err) {
