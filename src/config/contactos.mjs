@@ -192,69 +192,37 @@ export function SincronizarContactos() {
 //=============== INICIA EL BLOQUE FINAL Y MÁS SEGURO ===============
 
 export async function ActualizarContacto(phone, datosNuevos = {}) {
-    console.log(`📥 [CONTACTOS] Solicitud para ActualizarContacto para ${phone}. Se enviará a la fila.`);
+    console.log(`📥 [CONTACTOS] Preparando datos para ${phone}.`);
 
     try {
+        // 1. OBTENER EL CONTACTO MÁS RECIENTE DE LA CACHÉ
         const contactoPrevio = getContactoByTelefono(phone);
 
-        let contactoParaEnviar = {};
+        let contactoParaEnviar;
 
         if (contactoPrevio) {
-            // Lógica para contactos existentes: fusiona los datos.
+            // Si existe, fusionamos los datos nuevos con los viejos
             contactoParaEnviar = { ...contactoPrevio, ...datosNuevos };
         } else {
-            // Lógica para contactos nuevos: crea la estructura COMPLETA.
-            console.log(`🆕 [CONTACTOS] Creando estructura COMPLETA para nuevo contacto: ${phone}`);
-            const estructuraCompleta = {};
-            for (const columna of COLUMNAS_VALIDAS) {
-                estructuraCompleta[columna] = ''; // Inicializa todas las columnas para evitar el error de "Bad Request".
-            }
+            // Si no existe, creamos la estructura base para el nuevo contacto
             contactoParaEnviar = {
-                ...estructuraCompleta,
                 ...datosNuevos,
                 TELEFONO: phone,
-                FECHA_PRIMER_CONTACTO: new Date().toLocaleDateString('es-CO'),
+                FECHA_PRIMER_CONTACTO: new Date().toLocaleDate-String('es-CO'),
                 ETIQUETA: 'Nuevo',
                 RESP_BOT: 'TRUE'
             };
         }
 
-        // Siempre actualiza la fecha del último contacto y asegura el teléfono.
+        // 2. ASEGURAR SIEMPRE LA FECHA DE ÚLTIMO CONTACTO
         contactoParaEnviar.FECHA_ULTIMO_CONTACTO = new Date().toLocaleDateString('es-CO');
-        contactoParaEnviar.TELEFONO = phone;
 
-   // 👉 Normalizamos y filtramos el objeto ANTES de enviarlo
-contactoParaEnviar = sanitizarContacto(contactoParaEnviar)
-
-// 👉 Elegimos la acción correcta para AppSheet
-const props = contactoPrevio
-  ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
-  : { Action: 'Add',  UserSettings: { DETECTAR: false } }
-
-        // ✅ CAMBIO PRINCIPAL: Envolvemos la llamada a la base de datos en nuestro gestor de tareas.
-        // Creamos la "tarea" que es la función que queremos ejecutar en la fila.
-        const task = () => postTableWithRetry(APPSHEETCONFIG, process.env.PAG_CONTACTOS, [contactoParaEnviar], props)
-
-// [DEBUG] Payload que se encola para creación/actualización de contacto
-try {
-  console.log(`[DEBUG CONTACTOS] ENCOLAR tarea para ${phone} en tabla ${process.env.PAG_CONTACTOS || 'CONTACTOS'}`);
-  // Si tu variable del row se llama distinto, usa ese nombre:
-  console.log('[DEBUG CONTACTOS] Row ENCOLADO:', JSON.stringify(contactoParaEnviar, null, 2));
-} catch (e) {
-  console.log('[DEBUG CONTACTOS] Error logueando payload ENCOLADO:', e?.message);
-}
-      
-        // Añadimos la tarea a la fila y esperamos a que se complete.
-        await addTask(task);
-        
-        // Si la tarea en la fila fue exitosa (no hubo error), actualizamos la caché local.
+        // 3. ACTUALIZAR LA CACHÉ LOCALMENTE
+        // El guardado final en AppSheet lo hará la próxima ejecución de ActualizarFechasContacto
         actualizarContactoEnCache(contactoParaEnviar);
-        console.log(`✅ [CONTACTOS] Tarea para ${phone} completada. Contacto procesado y actualizado en caché.`);
+        console.log(`✅ [CONTACTOS] Contacto para ${phone} actualizado en caché. El guardado en AppSheet es inminente.`);
 
     } catch (error) {
-        // Este error se captura si la tarea en la fila falla después de todos sus reintentos.
-        console.error(`❌ [CONTACTOS] Error fatal en la tarea de ActualizarContacto para ${phone} via queue:`, error.message);
+        console.error(`❌ [CONTACTOS] Error preparando datos para ${phone}:`, error.message);
     }
 }
-
-//=============== FIN DEL BLOQUE ===============
