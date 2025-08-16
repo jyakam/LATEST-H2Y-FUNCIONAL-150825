@@ -98,9 +98,7 @@ export async function ActualizarFechasContacto(contacto, phone) {
 
     // ====== INICIO DE LA CORRECCIÓN ======
     // Movemos este bloque aquí arriba para que la variable exista antes de usarla.
-    const propsDinamicas = existeEnCache
-      ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
-      : { Action: 'Add',  UserSettings: { DETECTAR: false } }
+    const propsDinamicas = { UserSettings: { DETECTAR: false } }
     // ====== FIN DE LA CORRECCIÓN ======
 
     // Sanitizar/normalizar antes de enviar (fechas a ISO, sin _RowNumber, etc.)
@@ -168,9 +166,7 @@ export async function ActualizarResumenUltimaConversacion(contacto, phone, resum
 
     // ====== INICIO DE LA CORRECCIÓN ======
     // Movemos este bloque aquí arriba para que la variable exista antes de usarla.
-    const propsDinamicas = existeEnCache
-      ? { Action: 'Edit', UserSettings: { DETECTAR: false } }
-      : { Action: 'Add',  UserSettings: { DETECTAR: false } }
+    const propsDinamicas = { UserSettings: { DETECTAR: false } }
     // ====== FIN DE LA CORRECCIÓN ======
 
     const row = limpiarRowContacto(datos, propsDinamicas.Action)
